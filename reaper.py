@@ -11,7 +11,7 @@ import logging
 logging.basicConfig(
         format='%(asctime)s %(name)16.16s:%(levelname)4.4s %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
-        level=logging.INFO,
+        level=logging.DEBUG,
         )
 log = logging.getLogger('nimsapi.reaper')
 logging.getLogger('nimsapi.reaper.scu').setLevel(logging.INFO)      # silence SCU logging
@@ -34,6 +34,7 @@ import requests
 import scu
 import tempdir as tempfile
 
+from nimsdata import medimg
 from nimsdata.medimg import nimsdicom
 from nimsdata.medimg import nimspfile
 from nimsdata.medimg import nimsgephysio
@@ -70,14 +71,15 @@ def datetime_encoder(o):
     raise TypeError(repr(o) + " is not JSON serializable")
 
 
-def write_json_file(path, json_document):
+def write_json_file(path, object_):
     with open(path, 'w') as json_file:
-        json.dump(json_document, json_file, default=datetime_encoder)
+        json.dump(object_, json_file, default=datetime_encoder)
+        json_file.write('\n')
 
 
 class Reaper(object):
 
-    def __init__(self, id_, upload_urls, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize):
+    def __init__(self, id_, upload_urls, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize, hash_, existing, timezone):
         self.id_ = id_
         self.upload_urls = upload_urls
         self.pat_id = pat_id
@@ -86,6 +88,9 @@ class Reaper(object):
         self.sleep_time = sleep_time
         self.tempdir = tempdir
         self.anonymize = anonymize
+        self.hash_ = hash_
+        self.existing = existing
+        self.timezone = timezone
         self.datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % self.id_)
         self.alive = True
 
@@ -97,7 +102,7 @@ class Reaper(object):
             with open(self.datetime_file, 'r') as f:
                 ref_datetime = datetime.datetime.strptime(f.readline(), DATE_FORMAT + '\n')
         else:
-            ref_datetime = datetime.datetime.now()
+            ref_datetime = datetime.datetime(1, 1, 1) if self.existing else datetime.datetime.now()
             self.set_reference_datetime(ref_datetime)
         return ref_datetime
     def set_reference_datetime(self, new_datetime):
@@ -178,7 +183,7 @@ class Reaper(object):
                         log.error('Error       %s %s: %s' % (log_info, filename, e))
                         return False
                     else:
-                        if r.status_code == 200:
+                        if r.status_code in [200, 202]:
                             log.debug('Success     %s %s [%s/s]' % (log_info, filename, hrsize(os.path.getsize(filepath)/upload_duration)))
                         else:
                             log.warning('Failure     %s %s: %s %s' % (log_info, filename, r.status_code, r.reason))
@@ -188,14 +193,15 @@ class Reaper(object):
 
 class DicomReaper(Reaper):
 
-    def __init__(self, url, arg_str, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize):
+    def __init__(self, url, arg_str, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize, hash_, existing, timezone):
         self.scu = scu.SCU(*arg_str.split(':'))
-        super(DicomReaper, self).__init__(self.scu.aec, url, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize)
+        super(DicomReaper, self).__init__(self.scu.aec, url, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize, hash_, existing, timezone)
 
     def run(self):
         monitored_exam = None
         current_exam_datetime = self.reference_datetime
         while self.alive:
+            iteration_start = datetime.datetime.now()
             query_params = {
                     'StudyInstanceUID': '',
                     'StudyID': '',
@@ -214,6 +220,7 @@ class DicomReaper(Reaper):
                 monitored_exam = None
                 continue
 
+            progress = False
             next_exam = None
             out_ex_cnt = len(outstanding_exams)
             if not monitored_exam and out_ex_cnt > 0:
@@ -229,15 +236,16 @@ class DicomReaper(Reaper):
                     log.info('Discarding  %s' % next_exam)
                     current_exam_datetime += datetime.timedelta(seconds=1)
                     monitored_exam = None
+                    progress = True
                 else:
                     log.info('New         %s' % next_exam)
                     monitored_exam = next_exam
 
-            success = True
-            if monitored_exam and self.alive:
-                success = monitored_exam.reap()
-            if not success or out_ex_cnt < 2: # sleep, if there is a problem or no queue
-                time.sleep(self.sleep_time)
+            if monitored_exam:
+                progress = monitored_exam.reap()
+            if not progress or out_ex_cnt < 2: # sleep, if no progress or no queue
+                sleep_time = (datetime.timedelta(seconds=self.sleep_time) - (datetime.datetime.now() - iteration_start)).total_seconds()
+                time.sleep(sleep_time if sleep_time > 0. else 0.)
 
 
     class Exam(object):
@@ -267,7 +275,7 @@ class DicomReaper(Reaper):
                     'SeriesTime': '',
                     'NumberOfSeriesRelatedInstances': '',
                     }
-            success = True
+            progress = False
             new_series = {s.uid: s for s in [self.Series(self, scu_resp) for scu_resp in self.reaper.scu.find(scu.SeriesQuery(**query_params))]}
             if new_series:
                 for uid in self.series_dict.keys(): # iterate over copy of keys
@@ -277,11 +285,12 @@ class DicomReaper(Reaper):
             for series in new_series.itervalues():
                 if not self.reaper.alive: break
                 if series.uid in self.series_dict:
-                    success &= self.series_dict[series.uid].reap(series.image_count)
+                    progress |= self.series_dict[series.uid].reap(series.image_count)
                 else:
                     log.info('New         %s' % series)
                     self.series_dict[series.uid] = series
-            return success
+                    progress = True
+            return progress
 
 
         class Series(object):
@@ -304,13 +313,14 @@ class DicomReaper(Reaper):
                 return '%s [%di] %s' % (self.log_info, self.image_count, self.timestamp)
 
             def reap(self, new_image_count):
-                success = False # TODO: maybe this should default to True to avoid unnecessary delays
+                progress = False
                 if new_image_count != self.image_count:
                     self.image_count = new_image_count
                     self.needs_reaping = True
                     self.fail_count = 0
                     log.info('Monitoring  %s' % self)
                 elif self.needs_reaping and self.image_count == 0:
+                    progress = True
                     self.needs_reaping = False
                     log.warning('Ignoring    %s (zero images)' % self)
                 elif self.needs_reaping: # image count has stopped increasing
@@ -322,16 +332,17 @@ class DicomReaper(Reaper):
                             for acq_no, acq_info in acq_info_dict.iteritems():
                                 self.reaper.retrieve_peripheral_data(tempdir_path, nimsdicom.NIMSDicom(acq_info[0]), *acq_info[1:])
                             if self.reaper.upload(tempdir_path, self.log_info):
-                                success = True
+                                progress = True
                                 self.needs_reaping = False
                                 log.info('Done        %s' % self)
                         else:
                             self.fail_count += 1
                             log.warning('Incomplete  %s, %dr, %df' % (self, reap_count, self.fail_count))
                             if self.fail_count > 9:
+                                progress = True
                                 self.needs_reaping = False
                                 log.warning('Abandoning  %s, too many failures' % self)
-                return success
+                return progress
 
             def split_into_acquisitions(self, series_path):
                 if self.reaper.anonymize:
@@ -339,9 +350,7 @@ class DicomReaper(Reaper):
                 dcm_dict = {}
                 acq_info_dict = {}
                 for filepath in [os.path.join(series_path, filename) for filename in os.listdir(series_path)]:
-                    if self.reaper.anonymize:
-                        self.DicomFile.anonymize(filepath)
-                    dcm = self.DicomFile(filepath)
+                    dcm = self.DicomFile(filepath, self.reaper.anonymize)
                     if os.path.basename(filepath).startswith('(none)'):
                         new_filepath = filepath.replace('(none)', 'NA')
                         os.rename(filepath, new_filepath)
@@ -353,11 +362,18 @@ class DicomReaper(Reaper):
                     name_prefix = '%s_%s%s' % (self.exam.id_, self.id_, '_'+str(acq_no) if acq_no is not None else '')
                     dir_name = name_prefix + '_dicoms'
                     arcdir_path = os.path.join(series_path, dir_name)
-                    dcm = self.DicomFile(acq_paths[0])
                     os.mkdir(arcdir_path)
                     for filepath in acq_paths:
                         os.rename(filepath, '%s.dcm' % os.path.join(arcdir_path, os.path.basename(filepath)))
-                    write_json_file(os.path.join(arcdir_path, 'metadata.json'), {'filetype': nimsdicom.NIMSDicom.filetype})
+                    metadata = {
+                            'filetype': nimsdicom.NIMSDicom.filetype,
+                            'overwrite': {
+                                'firstname_hash': dcm.firstname_hash,
+                                'lastname_hash': dcm.lastname_hash,
+                                'timezone': self.reaper.timezone,
+                                }
+                            }
+                    write_json_file(os.path.join(arcdir_path, 'metadata.json'), metadata)
                     create_archive(arcdir_path+'.tgz', arcdir_path, dir_name, compresslevel=6)
                     shutil.rmtree(arcdir_path)
                     acq_info_dict[acq_no] = (arcdir_path+'.tgz', name_prefix, '%s%s' % (self.log_info, '.'+str(acq_no) if acq_no is not None else ''))
@@ -366,10 +382,8 @@ class DicomReaper(Reaper):
 
             class DicomFile(object):
 
-                TAG_PSD_NAME = (0x0019, 0x109c)
-
-                def __init__(self, filepath):
-                    dcm = dicom.read_file(filepath, stop_before_pixels=True)
+                def __init__(self, filepath, anonymize=False):
+                    dcm = dicom.read_file(filepath, stop_before_pixels=(not anonymize))
                     study_date = dcm.get('StudyDate')
                     study_time = dcm.get('StudyTime')
                     acq_date = dcm.get('AcquisitionDate')
@@ -378,21 +392,27 @@ class DicomReaper(Reaper):
                     acq_datetime = acq_date and acq_time and datetime.datetime.strptime(acq_date + acq_time[:6], '%Y%m%d%H%M%S')
                     self.timestamp = acq_datetime or study_datetime
                     self.acq_no = int(dcm.get('AcquisitionNumber', 1)) if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
-
-                @staticmethod
-                def anonymize(filepath):
-                    dcm = dicom.read_file(filepath, stop_before_pixels=False)
-                    dcm.PatientName = ''
-                    dcm.PatientBirthDate = dcm.PatientBirthDate[:6] + '15' if dcm.PatientBirthDate else ''
-                    dcm.save_as(filepath)
+                    self.firstname_hash = None
+                    self.lastname_hash = None
+                    if anonymize:
+                        firstname, lastname = medimg.parse_patient_name(dcm.PatientName)
+                        self.firstname_hash = hashlib.sha256(firstname).hexdigest() if firstname else None
+                        self.lastname_hash = hashlib.sha256(lastname).hexdigest() if lastname else None
+                        if dcm.PatientBirthDate:
+                            dob = datetime.datetime.strptime(dcm.PatientBirthDate, '%Y%m%d')
+                            months = 12 * (self.timestamp.year - dob.year) + (self.timestamp.month - dob.month) - (self.timestamp.day < dob.day)
+                            dcm.PatientAge = '%03dM' % months if months < 960 else '%03dY' % (months/12)
+                        del dcm.PatientName
+                        del dcm.PatientBirthDate
+                        dcm.save_as(filepath)
 
 
 class PFileReaper(Reaper):
 
-    def __init__(self, url, data_path, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize):
+    def __init__(self, url, data_path, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize, hash_, existing, timezone):
         self.data_glob = os.path.join(data_path, 'P?????.7')
         id_ = data_path.strip('/').replace('/', '_')
-        super(PFileReaper, self).__init__(id_, url, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize)
+        super(PFileReaper, self).__init__(id_, url, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize, hash_, existing, timezone)
 
     def run(self):
         current_file_datetime = self.reference_datetime
@@ -405,8 +425,8 @@ class PFileReaper(Reaper):
             except (OSError, Warning) as e:
                 log.warning(e)
             else:
-                reap_files = sorted(filter(lambda f: f.mod_time >= current_file_datetime, reap_files), key=lambda f: f.mod_time)
-                for rf in reap_files:
+                reap_files = sorted([f for f in reap_files if f.mod_time >= current_file_datetime], key=lambda f: f.mod_time)
+                for rf in reap_files: # FIXME: we should probably be doing one file at a time.
                     rf.parse_pfile()
                     if rf.pfile is None:
                         rf.needs_reaping = False
@@ -427,11 +447,13 @@ class PFileReaper(Reaper):
                         if mf.needs_reaping and rf.size == mf.size:
                             if rf.reap(): # returns True, if successful
                                 self.reference_datetime = current_file_datetime = rf.mod_time
+                            else:
+                                break
                         elif rf.size == mf.size:
                             rf.needs_reaping = False
                         else:
                             log.info('Monitoring  %s' % rf)
-                monitored_files = dict(zip([rf.path for rf in reap_files], reap_files))
+                monitored_files = {rf.path: rf for rf in reap_files}
             if len([rf for rf in monitored_files.itervalues() if rf.needs_reaping and not rf.error]) < 2: # sleep, if there is no queue of files that need reaping
                 time.sleep(self.sleep_time)
 
@@ -487,6 +509,7 @@ class PFileReaper(Reaper):
                                 'timestamp': self.pfile.nims_timestamp,
                                 },
                             }
+                    print metadata
                     write_json_file(os.path.join(reap_path, 'metadata.json'), metadata)
                     create_archive(reap_path+'.tgz', reap_path, os.path.basename(reap_path), dereference=True, compresslevel=4)
                     shutil.rmtree(reap_path)
@@ -513,12 +536,15 @@ if __name__ == '__main__':
     arg_parser.add_argument('cls', metavar='class', help='Reaper subclass to use')
     arg_parser.add_argument('class_args', help='subclass arguments')
     arg_parser.add_argument('-a', '--anonymize', action='store_true', help='anonymize patient name and birthdate')
+    arg_parser.add_argument('-A', '--hash', action='store_true', help='hash patient name and send with upload')
     arg_parser.add_argument('-d', '--discard', default='discard', help='space-separated list of Patient IDs to discard')
     arg_parser.add_argument('-i', '--patid', help='glob for Patient IDs to reap (default: "*")')
     arg_parser.add_argument('-p', '--peripheral', nargs=2, action='append', default=[], help='path to peripheral data')
     arg_parser.add_argument('-s', '--sleeptime', type=int, default=30, help='time to sleep before checking for new data')
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
     arg_parser.add_argument('-u', '--upload_url', action='append', help='upload URL')
+    arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
+    arg_parser.add_argument('-z', '--timezone', help='instrument timezone')
     args = arg_parser.parse_args()
 
     try:
@@ -527,7 +553,7 @@ if __name__ == '__main__':
         log.error(args.cls + ' is not a valid Reaper class')
         sys.exit(1)
 
-    reaper = reaper_cls(args.upload_url, args.class_args, args.patid, args.discard.split(), dict(args.peripheral), args.sleeptime, args.tempdir, args.anonymize)
+    reaper = reaper_cls(args.upload_url, args.class_args, args.patid, args.discard.split(), dict(args.peripheral), args.sleeptime, args.tempdir, args.anonymize, args.hash, args.existing, args.timezone)
 
     def term_handler(signum, stack):
         reaper.halt()
