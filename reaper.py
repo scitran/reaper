@@ -53,14 +53,23 @@ def hrsize(size):
     return '%.0f%s' % (size, 'Y')
 
 
-def create_archive(path, content, arcname, **kwargs):
-    def add_to_archive(archive, content, arcname):
-        archive.add(content, arcname, recursive=False)
-        if os.path.isdir(content):
-            for fn in sorted(os.listdir(content), key=lambda fn: not fn.endswith('.json')):
-                add_to_archive(archive, os.path.join(content, fn), os.path.join(arcname, fn))
+def create_archive(path, content, arcname, metadata, **kwargs):
+    # write metadata file
+    metadata_filepath = os.path.join(content, 'METADATA.json')
+    with open(metadata_filepath, 'w') as json_file:
+        json.dump(metadata, json_file, default=datetime_encoder)
+        json_file.write('\n')
+    # write digest file
+    digest_filepath = os.path.join(content, 'DIGEST.txt')
+    open(digest_filepath, 'w').close() # touch file, so that it's included in the digest
+    filenames = sorted(os.listdir(content), key=lambda fn: (fn.endswith('.json') and 1) or (fn.endswith('.txt') and 2) or fn)
+    with open(digest_filepath, 'w') as digest_file:
+        digest_file.write('\n'.join(filenames) + '\n')
+    # create archive
     with tarfile.open(path, 'w:gz', **kwargs) as archive:
-        add_to_archive(archive, content, arcname)
+        archive.add(content, arcname, recursive=False) # add the top-level directory
+        for fn in filenames:
+            archive.add(os.path.join(content, fn), os.path.join(arcname, fn))
 
 
 def datetime_encoder(o):
@@ -71,26 +80,25 @@ def datetime_encoder(o):
     raise TypeError(repr(o) + " is not JSON serializable")
 
 
-def write_json_file(path, object_):
-    with open(path, 'w') as json_file:
-        json.dump(object_, json_file, default=datetime_encoder)
-        json_file.write('\n')
+class ReaperOptions(object):
+
+    def __init__(self, args):
+        self.pat_id = args.patid
+        self.discard_ids = args.discard.split()
+        self.peripheral_data = dict(args.peripheral)
+        self.sleep_time = args.sleeptime
+        self.tempdir = args.tempdir
+        self.anonymize = args.anonymize
+        self.existing = args.existing
+        self.timezone = args.timezone
 
 
 class Reaper(object):
 
-    def __init__(self, id_, upload_urls, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize, hash_, existing, timezone):
+    def __init__(self, id_, upload_urls, options):
         self.id_ = id_
         self.upload_urls = upload_urls
-        self.pat_id = pat_id
-        self.discard_ids = discard_ids
-        self.peripheral_data = peripheral_data
-        self.sleep_time = sleep_time
-        self.tempdir = tempdir
-        self.anonymize = anonymize
-        self.hash_ = hash_
-        self.existing = existing
-        self.timezone = timezone
+        self.options = options
         self.datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % self.id_)
         self.alive = True
 
@@ -102,7 +110,7 @@ class Reaper(object):
             with open(self.datetime_file, 'r') as f:
                 ref_datetime = datetime.datetime.strptime(f.readline(), DATE_FORMAT + '\n')
         else:
-            ref_datetime = datetime.datetime(1, 1, 1) if self.existing else datetime.datetime.now()
+            ref_datetime = datetime.datetime(1, 1, 1) if self.options.existing else datetime.datetime.now()
             self.set_reference_datetime(ref_datetime)
         return ref_datetime
     def set_reference_datetime(self, new_datetime):
@@ -132,7 +140,7 @@ class Reaper(object):
         physio_tuples = filter(lambda pt: lower_time_bound <= pt[0] <= upper_time_bound, physio_tuples)
         if physio_tuples:
             log.info('Periph data %s %s found' % (log_info, name))
-            with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir_path:
+            with tempfile.TemporaryDirectory(dir=self.options.tempdir) as tempdir_path:
                 metadata = {
                         'filetype': nimsgephysio.NIMSGEPhysio.filetype,
                         'header': {
@@ -145,15 +153,14 @@ class Reaper(object):
                         }
                 physio_reap_path = os.path.join(tempdir_path, reap_name)
                 os.mkdir(physio_reap_path)
-                write_json_file(os.path.join(physio_reap_path, 'metadata.json'), metadata)
                 for pts, pfn in physio_tuples:
                     shutil.copy2(os.path.join(data_path, pfn), physio_reap_path)
-                create_archive(os.path.join(reap_path, reap_name+'.tgz'), physio_reap_path, reap_name, compresslevel=6)
+                create_archive(os.path.join(reap_path, reap_name+'.tgz'), physio_reap_path, reap_name, metadata, compresslevel=6)
         else:
             log.info('Periph data %s %s not found' % (log_info, name))
 
     def retrieve_peripheral_data(self, reap_path, reap_data, reap_name, log_info):
-        for pdn, pdp in self.peripheral_data.iteritems():
+        for pdn, pdp in self.options.peripheral_data.iteritems():
             if pdn in self.peripheral_data_fn_map:
                 self.peripheral_data_fn_map[pdn](self, pdn, pdp, reap_path, reap_data, reap_name+'_'+pdn, log_info)
             else:
@@ -193,9 +200,9 @@ class Reaper(object):
 
 class DicomReaper(Reaper):
 
-    def __init__(self, url, arg_str, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize, hash_, existing, timezone):
+    def __init__(self, arg_str, upload_urls, options):
         self.scu = scu.SCU(*arg_str.split(':'))
-        super(DicomReaper, self).__init__(self.scu.aec, url, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize, hash_, existing, timezone)
+        super(DicomReaper, self).__init__(self.scu.aec, upload_urls, options)
 
     def run(self):
         monitored_exam = None
@@ -209,8 +216,8 @@ class DicomReaper(Reaper):
                     'StudyTime': '',
                     'PatientID': '',
                     }
-            if self.pat_id:
-                query_params['PatientID'] = self.pat_id
+            if self.options.pat_id:
+                query_params['PatientID'] = self.options.pat_id
             outstanding_exams = [self.Exam(self, scu_resp) for scu_resp in self.scu.find(scu.StudyQuery(**query_params))]
             outstanding_exams = filter(lambda exam: exam.timestamp >= current_exam_datetime, outstanding_exams)
             outstanding_exams.sort(key=lambda exam: exam.timestamp)
@@ -232,7 +239,7 @@ class DicomReaper(Reaper):
 
             if next_exam:
                 self.reference_datetime = current_exam_datetime = next_exam.timestamp
-                if next_exam.pat_id.strip('/').lower() in self.discard_ids:
+                if next_exam.pat_id.strip('/').lower() in self.options.discard_ids:
                     log.info('Discarding  %s' % next_exam)
                     current_exam_datetime += datetime.timedelta(seconds=1)
                     monitored_exam = None
@@ -244,7 +251,7 @@ class DicomReaper(Reaper):
             if monitored_exam:
                 progress = monitored_exam.reap()
             if not progress or out_ex_cnt < 2: # sleep, if no progress or no queue
-                sleep_time = (datetime.timedelta(seconds=self.sleep_time) - (datetime.datetime.now() - iteration_start)).total_seconds()
+                sleep_time = (datetime.timedelta(seconds=self.options.sleep_time) - (datetime.datetime.now() - iteration_start)).total_seconds()
                 time.sleep(sleep_time if sleep_time > 0. else 0.)
 
 
@@ -325,7 +332,7 @@ class DicomReaper(Reaper):
                     log.warning('Ignoring    %s (zero images)' % self)
                 elif self.needs_reaping: # image count has stopped increasing
                     log.info('Reaping     %s' % self)
-                    with tempfile.TemporaryDirectory(dir=self.reaper.tempdir) as tempdir_path:
+                    with tempfile.TemporaryDirectory(dir=self.reaper.options.tempdir) as tempdir_path:
                         reap_count = self.reaper.scu.move(scu.SeriesQuery(StudyInstanceUID='', SeriesInstanceUID=self.uid), tempdir_path)
                         if reap_count == self.image_count:
                             acq_info_dict = self.split_into_acquisitions(tempdir_path)
@@ -345,12 +352,12 @@ class DicomReaper(Reaper):
                 return progress
 
             def split_into_acquisitions(self, series_path):
-                if self.reaper.anonymize:
+                if self.reaper.options.anonymize:
                     log.info('Anonymizing %s' % self)
                 dcm_dict = {}
                 acq_info_dict = {}
                 for filepath in [os.path.join(series_path, filename) for filename in os.listdir(series_path)]:
-                    dcm = self.DicomFile(filepath, self.reaper.anonymize)
+                    dcm = self.DicomFile(filepath, self.reaper.options.anonymize)
                     if os.path.basename(filepath).startswith('(none)'):
                         new_filepath = filepath.replace('(none)', 'NA')
                         os.rename(filepath, new_filepath)
@@ -370,11 +377,10 @@ class DicomReaper(Reaper):
                             'overwrite': {
                                 'firstname_hash': dcm.firstname_hash,
                                 'lastname_hash': dcm.lastname_hash,
-                                'timezone': self.reaper.timezone,
+                                'timezone': self.reaper.options.timezone,
                                 }
                             }
-                    write_json_file(os.path.join(arcdir_path, 'metadata.json'), metadata)
-                    create_archive(arcdir_path+'.tgz', arcdir_path, dir_name, compresslevel=6)
+                    create_archive(arcdir_path+'.tgz', arcdir_path, dir_name, metadata, compresslevel=6)
                     shutil.rmtree(arcdir_path)
                     acq_info_dict[acq_no] = (arcdir_path+'.tgz', name_prefix, '%s%s' % (self.log_info, '.'+str(acq_no) if acq_no is not None else ''))
                 return acq_info_dict
@@ -409,10 +415,10 @@ class DicomReaper(Reaper):
 
 class PFileReaper(Reaper):
 
-    def __init__(self, url, data_path, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize, hash_, existing, timezone):
+    def __init__(self, data_path, upload_urls, options):
         self.data_glob = os.path.join(data_path, 'P?????.7')
         id_ = data_path.strip('/').replace('/', '_')
-        super(PFileReaper, self).__init__(id_, url, pat_id, discard_ids, peripheral_data, sleep_time, tempdir, anonymize, hash_, existing, timezone)
+        super(PFileReaper, self).__init__(id_, upload_urls, options)
 
     def run(self):
         current_file_datetime = self.reference_datetime
@@ -432,11 +438,11 @@ class PFileReaper(Reaper):
                         rf.needs_reaping = False
                         if rf.path not in monitored_files:
                             log.warning('Skipping    %s (unparsable)' % rf.basename)
-                    elif rf.pfile.patient_id.strip('/').lower() in self.discard_ids:
+                    elif rf.pfile.patient_id.strip('/').lower() in self.options.discard_ids:
                         rf.needs_reaping = False
                         if rf.path not in monitored_files:
                             log.info('Discarding  %s' % rf)
-                    elif self.pat_id and not re.match(self.pat_id.replace('*','.*'), rf.pfile.patient_id):
+                    elif self.options.pat_id and not re.match(self.options.pat_id.replace('*','.*'), rf.pfile.patient_id):
                         rf.needs_reaping = False
                         if rf.path not in monitored_files:
                             log.info('Ignoring    %s' % rf)
@@ -454,8 +460,8 @@ class PFileReaper(Reaper):
                         else:
                             log.info('Monitoring  %s' % rf)
                 monitored_files = {rf.path: rf for rf in reap_files}
-            if len([rf for rf in monitored_files.itervalues() if rf.needs_reaping and not rf.error]) < 2: # sleep, if there is no queue of files that need reaping
-                time.sleep(self.sleep_time)
+            if len([rf for rf in monitored_files.itervalues() if rf.needs_reaping and not rf.error]) < 2: # sleep, if no queue
+                time.sleep(self.options.sleep_time)
 
 
     class ReapPFile(object):
@@ -489,11 +495,11 @@ class PFileReaper(Reaper):
                 return False
 
         def reap(self):
-            with tempfile.TemporaryDirectory(dir=self.reaper.tempdir) as tempdir_path:
+            with tempfile.TemporaryDirectory(dir=self.reaper.options.tempdir) as tempdir_path:
                 reap_path = '%s/%s_pfile' % (tempdir_path, self.name_prefix)
                 os.mkdir(reap_path)
                 auxfiles = [(ap, self.basename + '_' + ap.rsplit('_', 1)[-1]) for ap in glob.glob(self.path + '_' + self.pfile.series_uid + '_*')]
-                log.debug('Staging     %s, %s' % (self.basename, ', '.join([af[1] for af in auxfiles])))
+                log.debug('Staging     %s%s' % (self.basename, ', ' + ', '.join([af[1] for af in auxfiles]) if auxfiles else ''))
                 os.symlink(self.path, os.path.join(reap_path, self.basename))
                 for af in auxfiles:
                     os.symlink(af[0], os.path.join(reap_path, af[1]))
@@ -509,9 +515,7 @@ class PFileReaper(Reaper):
                                 'timestamp': self.pfile.nims_timestamp,
                                 },
                             }
-                    print metadata
-                    write_json_file(os.path.join(reap_path, 'metadata.json'), metadata)
-                    create_archive(reap_path+'.tgz', reap_path, os.path.basename(reap_path), dereference=True, compresslevel=4)
+                    create_archive(reap_path+'.tgz', reap_path, os.path.basename(reap_path), metadata, dereference=True, compresslevel=4)
                     shutil.rmtree(reap_path)
                 except (IOError):
                     self.error = True
@@ -536,13 +540,12 @@ if __name__ == '__main__':
     arg_parser.add_argument('cls', metavar='class', help='Reaper subclass to use')
     arg_parser.add_argument('class_args', help='subclass arguments')
     arg_parser.add_argument('-a', '--anonymize', action='store_true', help='anonymize patient name and birthdate')
-    arg_parser.add_argument('-A', '--hash', action='store_true', help='hash patient name and send with upload')
     arg_parser.add_argument('-d', '--discard', default='discard', help='space-separated list of Patient IDs to discard')
     arg_parser.add_argument('-i', '--patid', help='glob for Patient IDs to reap (default: "*")')
     arg_parser.add_argument('-p', '--peripheral', nargs=2, action='append', default=[], help='path to peripheral data')
     arg_parser.add_argument('-s', '--sleeptime', type=int, default=30, help='time to sleep before checking for new data')
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
-    arg_parser.add_argument('-u', '--upload_url', action='append', help='upload URL')
+    arg_parser.add_argument('-u', '--upload', action='append', help='upload URL')
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone')
     args = arg_parser.parse_args()
@@ -553,7 +556,8 @@ if __name__ == '__main__':
         log.error(args.cls + ' is not a valid Reaper class')
         sys.exit(1)
 
-    reaper = reaper_cls(args.upload_url, args.class_args, args.patid, args.discard.split(), dict(args.peripheral), args.sleeptime, args.tempdir, args.anonymize, args.hash, args.existing, args.timezone)
+    options = ReaperOptions(args)
+    reaper = reaper_cls(args.class_args, args.upload, options)
 
     def term_handler(signum, stack):
         reaper.halt()
