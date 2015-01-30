@@ -539,7 +539,7 @@ if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('cls', metavar='class', help='Reaper subclass to use')
     arg_parser.add_argument('class_args', help='subclass arguments')
-    arg_parser.add_argument('-a', '--anonymize', action='store_true', help='anonymize patient name and birthdate')
+    arg_parser.add_argument('-A', '--no-anonymize', dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')
     arg_parser.add_argument('-d', '--discard', default='discard', help='space-separated list of Patient IDs to discard')
     arg_parser.add_argument('-i', '--patid', help='glob for Patient IDs to reap (default: "*")')
     arg_parser.add_argument('-p', '--peripheral', nargs=2, action='append', default=[], help='path to peripheral data')
