@@ -41,6 +41,7 @@ from nimsdata.medimg import nimsgephysio
 
 DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 
+
 def hrsize(size):
     if size < 1000:
         return '%d%s' % (size, 'B')
@@ -51,6 +52,14 @@ def hrsize(size):
         if size < 1000.:
             return '%.0f%s' % (size, suffix)
     return '%.0f%s' % (size, 'Y')
+
+
+def datetime_encoder(o):
+    if isinstance(o, datetime.datetime):
+        if o.utcoffset() is not None:
+            o = o - o.utcoffset()
+        return {"$date": int(calendar.timegm(o.timetuple()) * 1000 + o.microsecond / 1000)}
+    raise TypeError(repr(o) + " is not JSON serializable")
 
 
 def create_archive(path, content, arcname, metadata, **kwargs):
@@ -70,14 +79,6 @@ def create_archive(path, content, arcname, metadata, **kwargs):
         archive.add(content, arcname, recursive=False) # add the top-level directory
         for fn in filenames:
             archive.add(os.path.join(content, fn), os.path.join(arcname, fn))
-
-
-def datetime_encoder(o):
-    if isinstance(o, datetime.datetime):
-        if o.utcoffset() is not None:
-            o = o - o.utcoffset()
-        return {"$date": int(calendar.timegm(o.timetuple()) * 1000 + o.microsecond / 1000)}
-    raise TypeError(repr(o) + " is not JSON serializable")
 
 
 class ReaperOptions(object):
@@ -200,7 +201,16 @@ class Reaper(object):
 
 class DicomReaper(Reaper):
 
+    query_params = {
+        'StudyInstanceUID': '',
+        'StudyID': '',
+        'StudyDate': '',
+        'StudyTime': '',
+        'PatientID': '',
+    }
+
     def __init__(self, arg_str, upload_urls, options):
+        self.query_params['PatientID'] = options.pat_id
         self.scu = scu.SCU(*arg_str.split(':'))
         super(DicomReaper, self).__init__(self.scu.aec, upload_urls, options)
 
@@ -209,18 +219,12 @@ class DicomReaper(Reaper):
         current_exam_datetime = self.reference_datetime
         while self.alive:
             iteration_start = datetime.datetime.now()
-            query_params = {
-                    'StudyInstanceUID': '',
-                    'StudyID': '',
-                    'StudyDate': current_exam_datetime.strftime('%Y%m%d-'),
-                    'StudyTime': '',
-                    'PatientID': '',
-                    }
-            if self.options.pat_id:
-                query_params['PatientID'] = self.options.pat_id
-            outstanding_exams = [self.Exam(self, scu_resp) for scu_resp in self.scu.find(scu.StudyQuery(**query_params))]
+            self.query_params['StudyDate'] = current_exam_datetime.strftime('%Y%m%d-')
+
+            outstanding_exams = [self.Exam(self, scu_resp) for scu_resp in self.scu.find(scu.StudyQuery(**self.query_params))]
             outstanding_exams = filter(lambda exam: exam.timestamp >= current_exam_datetime, outstanding_exams)
             outstanding_exams.sort(key=lambda exam: exam.timestamp)
+            out_ex_cnt = len(outstanding_exams)
 
             if monitored_exam and outstanding_exams and monitored_exam.id_ != outstanding_exams[0].id_:
                 log.warning('Dropping    %s (assumed deleted from scanner)' % monitored_exam)
@@ -229,11 +233,12 @@ class DicomReaper(Reaper):
 
             progress = False
             next_exam = None
-            out_ex_cnt = len(outstanding_exams)
             if not monitored_exam and out_ex_cnt > 0:
                 next_exam = outstanding_exams[0]
-            elif monitored_exam and out_ex_cnt > 1:
-                if not monitored_exam.needs_reaping:
+                progress = True
+            if monitored_exam:
+                progress = monitored_exam.reap()
+                if out_ex_cnt > 1 and not progress and not monitored_exam.needs_reaping:
                     next_exam = outstanding_exams[1]
                     out_ex_cnt -= 1 # adjust for conditional sleep below
 
@@ -248,11 +253,11 @@ class DicomReaper(Reaper):
                     log.info('New         %s' % next_exam)
                     monitored_exam = next_exam
 
-            if monitored_exam:
-                progress = monitored_exam.reap()
             if not progress or out_ex_cnt < 2: # sleep, if no progress or no queue
                 sleep_time = (datetime.timedelta(seconds=self.options.sleep_time) - (datetime.datetime.now() - iteration_start)).total_seconds()
-                time.sleep(sleep_time if sleep_time > 0. else 0.)
+                if sleep_time > 0:
+                    log.info('Sleeping for %.1fs' % sleep_time)
+                    time.sleep(sleep_time)
 
 
     class Exam(object):
@@ -541,7 +546,7 @@ if __name__ == '__main__':
     arg_parser.add_argument('class_args', help='subclass arguments')
     arg_parser.add_argument('-A', '--no-anonymize', dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')
     arg_parser.add_argument('-d', '--discard', default='discard', help='space-separated list of Patient IDs to discard')
-    arg_parser.add_argument('-i', '--patid', help='glob for Patient IDs to reap (default: "*")')
+    arg_parser.add_argument('-i', '--patid', default='', help='glob for Patient IDs to reap (default: "*")')
     arg_parser.add_argument('-p', '--peripheral', nargs=2, action='append', default=[], help='path to peripheral data')
     arg_parser.add_argument('-s', '--sleeptime', type=int, default=30, help='time to sleep before checking for new data')
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
