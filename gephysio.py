@@ -37,6 +37,7 @@ def reap(name, data_path, reap_path, reap_data, reap_name, log, log_info, tempdi
         with tempfile.TemporaryDirectory(dir=tempdir) as tempdir_path:
             metadata = {
                     'filetype': scitran.data.medimg.gephysio.GEPhysio.filetype,
+                    'timezone': reap_data.nims_timezone,
                     'header': {
                         'group': reap_data.nims_group_id,
                         'project': reap_data.nims_project,

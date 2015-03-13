@@ -188,7 +188,9 @@ class Reaper(object):
 
 def main(cls):
     import sys
+    import pytz
     import signal
+    import tzlocal
     import argparse
 
     arg_parser = argparse.ArgumentParser()
@@ -201,16 +203,25 @@ def main(cls):
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
     arg_parser.add_argument('-u', '--upload', action='append', help='upload URL')
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
-    arg_parser.add_argument('-z', '--timezone', help='instrument timezone')
+    arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
     args = arg_parser.parse_args()
+
+    if args.timezone is None:
+        args.timezone = tzlocal.get_localzone().zone
+    else:
+        try:
+            pytz.timezone(args.timezone)
+        except pytz.UnknownTimeZoneError:
+            log.error('invalid timezone')
+            sys.exit(1)
 
     options = ReaperOptions(args)
     reaper = cls(args.class_args, options)
 
     def term_handler(signum, stack):
         reaper.halt()
-        log.warning('Received SIGTERM - shutting down...')
+        log.warning('received SIGTERM - shutting down...')
     signal.signal(signal.SIGTERM, term_handler)
 
     reaper.run()
-    log.warning('Process halted')
+    log.warning('process halted')

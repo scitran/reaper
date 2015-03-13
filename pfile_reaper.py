@@ -54,7 +54,7 @@ class PFileReaper(reaper.Reaper):
 
     def reap(self, item):
         try:
-            pfile = scipfile.PFile(item['path'])
+            pfile = scipfile.PFile(item['path'], timezone=self.options.timezone)
         except scipfile.PFileError:
             pfile = None
             success = True
@@ -69,7 +69,7 @@ class PFileReaper(reaper.Reaper):
             else:
                 name_prefix = pfile.series_uid + '_' + str(pfile.acq_no)
                 with tempfile.TemporaryDirectory(dir=self.options.tempdir) as tempdir_path:
-                    reap_path = '%s/%s_pfile' % (tempdir_path, name_prefix)
+                    reap_path = tempdir_path + '/' + name_prefix + '_' + scipfile.PFile.filetype
                     os.mkdir(reap_path)
                     auxfiles = [(ap, item['_id'] + '_' + ap.rsplit('_', 1)[-1]) for ap in glob.glob(item['path'] + '_' + pfile.series_uid + '_*')]
                     log.debug('staging      %s%s' % (item['_id'], ', ' + ', '.join([af[1] for af in auxfiles]) if auxfiles else ''))
@@ -80,6 +80,7 @@ class PFileReaper(reaper.Reaper):
                     log.info('reaping.tgz  %s [%s%s]' % (item['_id'], pfile_size, ' + %d aux files' % len(auxfiles) if auxfiles else ''))
                     metadata = {
                         'filetype': scipfile.PFile.filetype,
+                        'timezone': self.options.timezone,
                         'header': {
                             'group': pfile.nims_group_id,
                             'project': pfile.nims_project,

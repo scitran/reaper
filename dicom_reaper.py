@@ -80,7 +80,7 @@ class DicomReaper(reaper.Reaper):
             if reap_cnt == item['state']['images']:
                 acq_info = self.split_into_acquisitions(item, tempdir_path, filepaths)
                 for ai in acq_info:
-                    self.reap_peripheral_data(tempdir_path, scidcm.Dicom(ai['path']), ai['prefix'], ai['log_info'])
+                    self.reap_peripheral_data(tempdir_path, scidcm.Dicom(ai['path'], timezone=self.options.timezone), ai['prefix'], ai['log_info'])
                 success = self.upload(tempdir_path, ai['log_info'])
                 if success:
                     log.info('completed    %s' % item['_id'])
@@ -109,17 +109,17 @@ class DicomReaper(reaper.Reaper):
         acq_info = []
         for acq_no, acq_paths in dcm_dict.iteritems():
             name_prefix = item['_id'] + ('_' + str(acq_no) if acq_no is not None else '')
-            dir_name = name_prefix + '_dicoms'
+            dir_name = name_prefix + '_' + scidcm.Dicom.filetype
             arcdir_path = os.path.join(path, dir_name)
             os.mkdir(arcdir_path)
             for filepath in acq_paths:
                 os.rename(filepath, '%s.dcm' % os.path.join(arcdir_path, os.path.basename(filepath)))
             metadata = {
                     'filetype': scidcm.Dicom.filetype,
+                    'timezone': self.options.timezone,
                     'overwrite': {
                         'firstname_hash': dcm.firstname_hash,
                         'lastname_hash': dcm.lastname_hash,
-                        'timezone': self.options.timezone,
                         }
                     }
             reaper.create_archive(arcdir_path+'.tgz', arcdir_path, dir_name, metadata, compresslevel=6)
