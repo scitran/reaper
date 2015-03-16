@@ -80,7 +80,8 @@ class DicomReaper(reaper.Reaper):
             if reap_cnt == item['state']['images']:
                 acq_info = self.split_into_acquisitions(item, tempdir_path, filepaths)
                 for ai in acq_info:
-                    self.reap_peripheral_data(tempdir_path, scidcm.Dicom(ai['path'], timezone=self.options.timezone), ai['prefix'], ai['log_info'])
+                    dcm = scidcm.Dicom(ai['path'], timezone=self.options.timezone)
+                    self.reap_peripheral_data(tempdir_path, dcm, ai['prefix'], ai['log_info'])
                 success = self.upload(tempdir_path, ai['log_info'])
                 if success:
                     log.info('completed    %s' % item['_id'])
@@ -140,11 +141,11 @@ class DicomReaper(reaper.Reaper):
             study_datetime = scidcm.timestamp(dcm.get('StudyDate'), dcm.get('StudyTime'))
             self.timestamp = acq_datetime or study_datetime
             self.acq_no = int(dcm.get('AcquisitionNumber', 1)) if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
-            self.patient_id = dcm.get('PatientID')
+            self.patient_id = dcm.get('PatientID', '')
             self.firstname_hash = None
             self.lastname_hash = None
             if anonymize:
-                firstname, lastname = scidcm.parse_patient_name(dcm.PatientName)
+                firstname, lastname = scidcm.parse_patient_name(dcm.get('PatientName', ''))
                 self.firstname_hash = hashlib.sha256(firstname).hexdigest() if firstname else None
                 self.lastname_hash = hashlib.sha256(lastname).hexdigest() if lastname else None
                 if dcm.PatientBirthDate:
