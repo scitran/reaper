@@ -66,18 +66,14 @@ def create_archive(path, content, arcname, metadata, **kwargs):
             archive.add(os.path.join(content, fn), os.path.join(arcname, fn))
 
 
-class ReaperOptions(object):
+class ReaperItem(dict):
 
-    def __init__(self, args):
-        self.upload_urls = args.upload
-        self.pat_id = args.patid.replace('*','.*')
-        self.discard_ids = args.discard.split()
-        self.peripheral_data = dict(args.peripheral)
-        self.sleep_time = args.sleeptime
-        self.tempdir = args.tempdir
-        self.anonymize = args.anonymize
-        self.existing = args.existing
-        self.timezone = args.timezone
+    def __init__(self, state, **kwargs):
+        self['reaped'] = False
+        self['failures'] = 0
+        self['lastseen'] = datetime.datetime.utcnow()
+        self['state'] = state
+        self.update(kwargs)
 
 
 class Reaper(object):
@@ -86,50 +82,68 @@ class Reaper(object):
 
     def __init__(self, id_, options):
         self.id_ = id_
-        self.options = options
+        self.upload_urls = options.upload
+        self.peripheral_data = dict(options.peripheral)
+        self.sleeptime = options.sleeptime
+        self.graceperiod = options.graceperiod
+        self.reap_existing = options.existing
+        self.tempdir = options.tempdir
+        self.timezone = options.timezone
+
         self.persitence_file = os.path.join(os.path.dirname(__file__), '.%s.json' % self.id_)
         self.state = self.persistent_state
         self.alive = True
-
-    def state_str(self, state):
-        return ', '.join(['%s: %s' %i for i in state.iteritems()])
 
     def halt(self):
         self.alive = False
 
     def run(self):
         while self.alive:
-            iteration_start = datetime.datetime.now()
+            query_start = datetime.datetime.utcnow()
             new_state = self.instrument_query()
+            reap_start = datetime.datetime.utcnow()
+            log.debug('query time   %.1fs' % (reap_start - query_start).total_seconds())
             if new_state:
                 for _id, item in new_state.iteritems():
-                    if _id in self.state:
-                        item['failures'] = self.state[_id]['failures']
-                        if not self.state[_id]['reaped'] and item['state'] == self.state[_id]['state']:
-                            item['reaped'] = self.reap(item)
-                        elif item['state'] != self.state[_id]['state']:
+                    state_item = self.state.pop(_id, None)
+                    if state_item:
+                        item['failures'] = state_item['failures']
+                        if not state_item['reaped'] and item['state'] == state_item['state']:
+                            item['reaped'] = self.reap(_id, item)
+                            if item['reaped']:
+                                item['failures'] = 0
+                            else:
+                                item['failures'] += 1
+                                log.warning('failure      %s (%d failures)' % (_id, item['failures']))
+                                if item['failures'] > 9:
+                                    item['reaped'] = True
+                                    log.warning('abandoning   %s (%s)' % (_id, self.state_str(item['state'])))
+                        elif item['state'] != state_item['state']:
                             item['reaped'] = False
-                            log.info('monitoring   %s (%s)' % (item['_id'], self.state_str(item['state'])))
+                            log.info('monitoring   %s (%s)' % (_id, self.state_str(item['state'])))
                         else:
                             item['reaped'] = True
                     else:
-                        item['reaped'] = False
-                        item['failures'] = 0
-                        log.info('discovered   %s (%s)' % (item['_id'], self.state_str(item['state'])))
+                        log.info('discovered   %s (%s)' % (_id, self.state_str(item['state'])))
+                for _id, item in self.state.iteritems(): # retain absent, but recently seen, items
+                    if item['lastseen'] + self.graceperiod > reap_start:
+                        new_state[_id] = item
+                        log.debug('retaining    %s' % _id)
+                    else:
+                        log.debug('purging      %s' % _id)
                 self.persistent_state = self.state = new_state
-                iteration_runtime = (datetime.datetime.now() - iteration_start).total_seconds()
                 log.info('monitoring   %d items, %d not reaped' % (len(self.state), len([v for v in self.state.itervalues() if not v['reaped']])))
+                log.debug('reap time    %.1fs' % (datetime.datetime.utcnow() - reap_start).total_seconds())
             else:
                 log.warning('unable to retrieve instrument state')
-            log.debug('reap time    %.1fs' % iteration_runtime)
-            sleep_time = self.options.sleep_time - iteration_runtime
-            if sleep_time > 0:
-                log.info('sleeping     %.1fs' % sleep_time)
-                time.sleep(sleep_time)
+            sleeptime = self.sleeptime - (datetime.datetime.utcnow() - reap_start).total_seconds()
+            if sleeptime > 0:
+                log.info('sleeping     %.1fs' % sleeptime)
+                time.sleep(sleeptime)
 
     def get_persistent_state(self):
         log.info('initializing ' + self.__class__.__name__)
-        if self.options.existing:
+        if self.reap_existing:
             state = {}
         else:
             try:
@@ -137,13 +151,14 @@ class Reaper(object):
                     state = json.load(persitence_file, object_hook=datetime_decoder)
                 log.info('loaded       %d items from persistence file' % len(state))
             except:
+                query_start = datetime.datetime.now()
                 state = self.instrument_query()
+                log.debug('query time   %.1fs' % (datetime.datetime.now() - query_start).total_seconds())
                 for item in state.itervalues():
                     item['reaped'] = True
-                    item['failures'] = 0
                 self.set_persistent_state(state)
                 log.info('ignoring     %d items currently on instrument' % len(state))
-                time.sleep(self.options.sleep_time)
+                time.sleep(self.sleeptime)
         return state
     def set_persistent_state(self, state):
         with open(self.persitence_file, 'w') as persitence_file:
@@ -152,9 +167,9 @@ class Reaper(object):
     persistent_state = property(get_persistent_state, set_persistent_state)
 
     def reap_peripheral_data(self, reap_path, reap_data, reap_name, log_info):
-        for pdn, pdp in self.options.peripheral_data.iteritems():
+        for pdn, pdp in self.peripheral_data.iteritems():
             if pdn in self.peripheral_data_reapers:
-                self.peripheral_data_reapers[pdn](pdn, pdp, reap_path, reap_data, reap_name+'_'+pdn, log, log_info, self.options.tempdir)
+                self.peripheral_data_reapers[pdn](pdn, pdp, reap_path, reap_data, reap_name+'_'+pdn, log, log_info, self.tempdir)
             else:
                 log.warning('periph data %s %s does not exist' % (log_info, pdn))
 
@@ -167,13 +182,13 @@ class Reaper(object):
                 for chunk in iter(lambda: fd.read(1048577 * hash_.block_size), ''):
                     hash_.update(chunk)
             headers = {'User-Agent': 'reaper ' + self.id_, 'Content-MD5': hash_.hexdigest()}
-            for url in self.options.upload_urls:
+            for url in self.upload_urls:
                 log.info('uploading    %s [%s] to %s' % (filename, hrsize(os.path.getsize(filepath)), url))
                 with open(filepath, 'rb') as fd:
                     try:
-                        start = datetime.datetime.now()
+                        start = datetime.datetime.utcnow()
                         r = requests.put(url + '?filename=%s_%s' % (self.id_, filename), data=fd, headers=headers)
-                        upload_duration = (datetime.datetime.now() - start).total_seconds()
+                        upload_duration = (datetime.datetime.utcnow() - start).total_seconds()
                     except requests.exceptions.ConnectionError as e:
                         log.error('error        %s: %s' % (filename, e))
                         return False
@@ -186,7 +201,7 @@ class Reaper(object):
         return True
 
 
-def main(cls):
+def main(cls, positional_args, optional_args):
     import sys
     import pytz
     import signal
@@ -194,16 +209,21 @@ def main(cls):
     import argparse
 
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('class_args', help='subclass arguments')
-    arg_parser.add_argument('-A', '--no-anonymize', dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')
-    arg_parser.add_argument('-d', '--discard', default='discard', help='space-separated list of Patient IDs to discard')
-    arg_parser.add_argument('-i', '--patid', default='*', help='glob for Patient IDs to reap (default: "*")')
     arg_parser.add_argument('-p', '--peripheral', nargs=2, action='append', default=[], help='path to peripheral data')
-    arg_parser.add_argument('-s', '--sleeptime', type=int, default=60, help='time to sleep before checking for new data')
+    arg_parser.add_argument('-s', '--sleeptime', type=int, default=60, help='time to sleep before checking for new data [60s]')
+    arg_parser.add_argument('-g', '--graceperiod', type=int, default=86400, help='time to keep vanished data alive [24h]')
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
     arg_parser.add_argument('-u', '--upload', action='append', help='upload URL')
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
+
+    pg = arg_parser.add_argument_group(cls.__name__ + ' arguments')
+    for args, kwargs in positional_args:
+        pg.add_argument(*args, **kwargs)
+    og = arg_parser.add_argument_group(cls.__name__ + ' options')
+    for args, kwargs in optional_args:
+        og.add_argument(*args, **kwargs)
+
     args = arg_parser.parse_args()
 
     if args.timezone is None:
@@ -215,8 +235,7 @@ def main(cls):
             log.error('invalid timezone')
             sys.exit(1)
 
-    options = ReaperOptions(args)
-    reaper = cls(args.class_args, options)
+    reaper = cls(args)
 
     def term_handler(signum, stack):
         reaper.halt()

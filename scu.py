@@ -48,13 +48,11 @@ class SCU(object):
         cmd = 'findscu -v %s' % self.query_string(query)
         log.debug(cmd)
         output = ''
-        query_start = datetime.datetime.now()
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
         except Exception as ex:
             log.debug(ex)
             output and self.log.debug(output)
-        log.info('query time   %.1fs' % (datetime.datetime.now() - query_start).total_seconds())
         if output and re.search('DIMSE Status .* Success', output):
             return [Response(query.kwargs.keys(), match_obj.groupdict()) for match_obj in RESPONSE_RE.finditer(output)]
         else:
