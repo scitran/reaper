@@ -89,6 +89,7 @@ class Reaper(object):
         self.reap_existing = options.existing
         self.tempdir = options.tempdir
         self.timezone = options.timezone
+        self.oneshot = options.oneshot
 
         self.persitence_file = os.path.join(os.path.dirname(__file__), '.%s.json' % self.id_)
         self.state = self.persistent_state
@@ -132,8 +133,11 @@ class Reaper(object):
                     else:
                         log.debug('purging      %s' % _id)
                 self.persistent_state = self.state = new_state
-                log.info('monitoring   %d items, %d not reaped' % (len(self.state), len([v for v in self.state.itervalues() if not v['reaped']])))
+                unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
+                log.info('monitoring   %d items, %d not reaped' % (len(self.state), unreaped_cnt))
                 log.debug('reap time    %.1fs' % (datetime.datetime.utcnow() - reap_start).total_seconds())
+                if self.oneshot and unreaped_cnt == 0:
+                    break
             else:
                 log.warning('unable to retrieve instrument state')
             sleeptime = self.sleeptime - (datetime.datetime.utcnow() - reap_start).total_seconds()
@@ -143,7 +147,7 @@ class Reaper(object):
 
     def get_persistent_state(self):
         log.info('initializing ' + self.__class__.__name__)
-        if self.reap_existing:
+        if self.oneshot or self.reap_existing:
             state = {}
         else:
             try:
@@ -214,8 +218,9 @@ def main(cls, positional_args, optional_args):
     arg_parser.add_argument('-g', '--graceperiod', type=int, default=86400, help='time to keep vanished data alive [24h]')
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
     arg_parser.add_argument('-u', '--upload', action='append', help='upload URL')
-    arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
+    arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
+    arg_parser.add_argument('-o', '--oneshot', action='store_true', help='retrieve all existing data and exit')
 
     pg = arg_parser.add_argument_group(cls.__name__ + ' arguments')
     for args, kwargs in positional_args:
@@ -225,6 +230,9 @@ def main(cls, positional_args, optional_args):
         og.add_argument(*args, **kwargs)
 
     args = arg_parser.parse_args()
+
+    if not args.upload:
+        log.warning('no upload URL provided; data will be purged after reaping')
 
     if args.timezone is None:
         args.timezone = tzlocal.get_localzone().zone
