@@ -53,10 +53,9 @@ class PFileReaper(reaper.Reaper):
     def reap(self, _id, item):
         try:
             pfile = scipfile.PFile(item['path'], timezone=self.timezone)
-        except scipfile.PFileError:
-            pfile = None
-            success = True
-            log.warning('skipping     %s (unparsable)' % _id)
+        except (IOError, scipfile.PFileError):
+            success = False
+            log.warning('skipping     %s (disappeared or unparsable)' % _id)
         else:
             if pfile.patient_id.strip('/').lower() in self.discard_ids:
                 success = True
@@ -104,14 +103,6 @@ class PFileReaper(reaper.Reaper):
                         else:
                             success = False
         return success
-
-    def is_auxfile(self, filepath):
-        if open(filepath).read(32) == self.pfile.series_uid:
-            return True
-        try:
-            return (scipfile.PFile(filepath).series_uid == self.pfile.series_uid)
-        except scipfile.PFileError:
-            return False
 
 
 if __name__ == '__main__':
