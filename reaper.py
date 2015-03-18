@@ -85,7 +85,7 @@ class Reaper(object):
         self.upload_urls = options.upload
         self.peripheral_data = dict(options.peripheral)
         self.sleeptime = options.sleeptime
-        self.graceperiod = options.graceperiod
+        self.graceperiod = datetime.timedelta(seconds=options.graceperiod)
         self.reap_existing = options.existing
         self.tempdir = options.tempdir
         self.timezone = options.timezone
@@ -128,8 +128,10 @@ class Reaper(object):
                         log.info('discovered   %s (%s)' % (_id, self.state_str(item['state'])))
                 for _id, item in self.state.iteritems(): # retain absent, but recently seen, items
                     if item['lastseen'] + self.graceperiod > reap_start:
+                        if not item.get('retained', False):
+                            item['retained'] = True
+                            log.debug('retaining    %s' % _id)
                         new_state[_id] = item
-                        log.debug('retaining    %s' % _id)
                     else:
                         log.debug('purging      %s' % _id)
                 self.persistent_state = self.state = new_state
