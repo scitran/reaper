@@ -83,7 +83,10 @@ class PFileReaper(reaper.Reaper):
                             'group': pfile.nims_group_id,
                             'project': pfile.nims_project,
                             'session': pfile.nims_session_id,
+                            'session_no': pfile.series_no,
+                            'session_desc': pfile.series_desc,
                             'acquisition': pfile.nims_acquisition_id,
+                            'acquisition_no': pfile.acq_no,
                             'timestamp': pfile.nims_timestamp,
                         },
                     }
