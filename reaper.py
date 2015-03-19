@@ -84,7 +84,7 @@ class Reaper(object):
 
     def __init__(self, id_, options):
         self.id_ = id_
-        self.upload_urls = options.upload
+        self.upload_uris = options.upload
         self.peripheral_data = dict(options.peripheral)
         self.sleeptime = options.sleeptime
         self.graceperiod = datetime.timedelta(seconds=options.graceperiod)
@@ -191,24 +191,46 @@ class Reaper(object):
             with open(filepath, 'rb') as fd:
                 for chunk in iter(lambda: fd.read(1048577 * hash_.block_size), ''):
                     hash_.update(chunk)
-            headers = {'User-Agent': 'reaper ' + self.id_, 'Content-MD5': hash_.hexdigest()}
-            for url in self.upload_urls:
-                log.info('uploading    %s [%s] to %s' % (filename, hrsize(os.path.getsize(filepath)), url))
-                with open(filepath, 'rb') as fd:
-                    try:
-                        start = datetime.datetime.utcnow()
-                        r = requests.put(url + '?filename=%s_%s' % (self.id_, filename), data=fd, headers=headers)
-                        upload_duration = (datetime.datetime.utcnow() - start).total_seconds()
-                    except requests.exceptions.ConnectionError as e:
-                        log.error('error        %s: %s' % (filename, e))
-                        return False
-                    else:
-                        if r.status_code in [200, 202]:
-                            log.info('uploaded     %s [%s/s]' % (filename, hrsize(os.path.getsize(filepath)/upload_duration)))
-                        else:
-                            log.warning('failure      %s: %s %s' % (filename, r.status_code, r.reason))
-                            return False
+            digest = hash_.hexdigest()
+            for uri in self.upload_uris:
+                log.info('uploading    %s [%s] to %s' % (filename, hrsize(os.path.getsize(filepath)), uri))
+                start = datetime.datetime.utcnow()
+                if uri.startswith('http://') or uri.startswith('https://'):
+                    success = self.http_upload(filename, filepath, digest, uri)
+                elif uri.startswith('s3://'):
+                    success = self.s3_upload(filename, filepath, digest, uri)
+                elif uri.startswith('file://'):
+                    success = self.file_copy(filename, filepath, digest, uri)
+                else:
+                    log.error('unknown URI schem: %s' % uri)
+                    return False
+                upload_duration = (datetime.datetime.utcnow() - start).total_seconds()
+                if success:
+                    log.info('uploaded     %s [%s/s]' % (filename, hrsize(os.path.getsize(filepath)/upload_duration)))
+                else:
+                    log.warning('failure      %s: %s %s' % (filename, r.status_code, r.reason))
+                    return False
         return True
+
+    def http_upload(self, filename, filepath, digest, uri):
+        headers = {'User-Agent': 'reaper ' + self.id_, 'Content-MD5': digest}
+        with open(filepath, 'rb') as fd:
+            try:
+                r = requests.put(uri + '?filename=%s_%s' % (self.id_, filename), data=fd, headers=headers)
+            except requests.exceptions.ConnectionError as e:
+                log.error('error        %s: %s' % (filename, e))
+                return False
+            else:
+                if r.status_code in [200, 202]:
+                    return True
+                else:
+                    return False
+
+    def s3_upload(self, filename, filepath, digest, uri):
+        pass
+
+    def file_copy(self, filename, filepath, digest, uri):
+        pass
 
 
 def main(cls, positional_args, optional_args):
@@ -223,7 +245,7 @@ def main(cls, positional_args, optional_args):
     arg_parser.add_argument('-s', '--sleeptime', type=int, default=60, help='time to sleep before checking for new data [60s]')
     arg_parser.add_argument('-g', '--graceperiod', type=int, default=86400, help='time to keep vanished data alive [24h]')
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
-    arg_parser.add_argument('-u', '--upload', action='append', help='upload URL')
+    arg_parser.add_argument('-u', '--upload', action='append', help='upload URI')
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='retrieve all existing data and exit')
