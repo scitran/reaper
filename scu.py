@@ -14,7 +14,6 @@ the find() or move() methods of an SCU object.
 import re
 import shlex
 import logging
-import datetime
 import subprocess
 
 log = logging.getLogger('reaper.dicom.scu')

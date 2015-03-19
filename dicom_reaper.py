@@ -13,7 +13,6 @@ logging.getLogger('reaper.dicom.scu').setLevel(logging.INFO)
 
 import os
 import re
-import time
 import dicom
 import shutil
 import hashlib
@@ -22,7 +21,6 @@ import datetime
 import scu
 import reaper
 import gephysio
-import tempdir as tempfile
 
 import scitran.data.medimg.dcm as scidcm
 logging.getLogger('scitran.data').setLevel(logging.INFO)
@@ -61,34 +59,31 @@ class DicomReaper(reaper.Reaper):
             i_state[r['SeriesInstanceUID']] = reaper.ReaperItem(state)
         return i_state
 
-    def reap(self, _id, item):
+    def reap(self, _id, item, tempdir):
         if item['state']['images'] == 0:
             log.info('ignoring     %s (zero images)' % _id)
             return True
+        reap_start = datetime.datetime.utcnow()
         log.info('reaping      %s (%s)' % (_id, self.state_str(item['state'])))
-        with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir_path:
-            reap_cnt = self.scu.move(scu.SeriesQuery(StudyInstanceUID='', SeriesInstanceUID=_id), tempdir_path)
-            filepaths = [os.path.join(tempdir_path, filename) for filename in os.listdir(tempdir_path)]
-            log.info('reaped       %s (%d images)' % (_id, reap_cnt))
-            if reap_cnt > 0:
-                dcm = self.DicomFile(filepaths[0])
-                if dcm.patient_id.strip('/').lower() in self.discard_ids:
-                    log.info('discarding   %s' % _id)
-                    return True
-                if not re.match(self.pat_id, dcm.patient_id):
-                    log.info('ignoring     %s (non-matching patient ID)' % _id)
-                    return True
-            if reap_cnt == item['state']['images']:
-                acq_info = self.split_into_acquisitions(_id, item, tempdir_path, filepaths)
-                for ai in acq_info:
-                    dcm = scidcm.Dicom(ai['path'], timezone=self.timezone)
-                    self.reap_peripheral_data(tempdir_path, dcm, ai['prefix'], ai['log_info'])
-                success = self.upload(tempdir_path, ai['log_info'])
-                if success:
-                    log.info('completed    %s' % _id)
-            else:
-                success = False
-        return success
+        reap_cnt = self.scu.move(scu.SeriesQuery(StudyInstanceUID='', SeriesInstanceUID=_id), tempdir)
+        filepaths = [os.path.join(tempdir, filename) for filename in os.listdir(tempdir)]
+        log.info('reaped       %s (%d images) in %.1fs' % (_id, reap_cnt, (datetime.datetime.utcnow() - reap_start).total_seconds()))
+        if reap_cnt > 0:
+            dcm = self.DicomFile(filepaths[0])
+            if dcm.patient_id.strip('/').lower() in self.discard_ids:
+                log.info('discarding   %s' % _id)
+                return True
+            if not re.match(self.pat_id, dcm.patient_id):
+                log.info('ignoring     %s (non-matching patient ID)' % _id)
+                return True
+        if reap_cnt == item['state']['images']:
+            acq_info = self.split_into_acquisitions(_id, item, tempdir, filepaths)
+            for ai in acq_info:
+                dcm = scidcm.Dicom(ai['path'], timezone=self.timezone)
+                self.reap_peripheral_data(tempdir, dcm, ai['prefix'], ai['log_info'])
+            return True
+        else:
+            return False
 
     def split_into_acquisitions(self, _id, item, path, filepaths):
         if self.anonymize:

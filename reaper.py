@@ -18,6 +18,8 @@ import calendar
 import datetime
 import requests
 
+import tempdir as tempfile
+
 DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
@@ -110,15 +112,18 @@ class Reaper(object):
                     if state_item:
                         item['failures'] = state_item['failures']
                         if not state_item['reaped'] and item['state'] == state_item['state']:
-                            item['reaped'] = self.reap(_id, item)
-                            if item['reaped']:
-                                item['failures'] = 0
-                            else:
-                                item['failures'] += 1
-                                log.warning('failure      %s (%d failures)' % (_id, item['failures']))
-                                if item['failures'] > 9:
-                                    item['reaped'] = True
-                                    log.warning('abandoning   %s (%s)' % (_id, self.state_str(item['state'])))
+                            with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir:
+                                item['reaped'] = self.reap(_id, item, tempdir)
+                                if item['reaped']:
+                                    item['failures'] = 0
+                                    if not self.upload(tempdir):
+                                        item['reaped'] = False
+                                else:
+                                    item['failures'] += 1
+                                    log.warning('failure      %s (%d failures)' % (_id, item['failures']))
+                                    if item['failures'] > 9:
+                                        item['reaped'] = True
+                                        log.warning('abandoning   %s (%s)' % (_id, self.state_str(item['state'])))
                         elif item['state'] != state_item['state']:
                             item['reaped'] = False
                             log.info('monitoring   %s (%s)' % (_id, self.state_str(item['state'])))
@@ -137,7 +142,6 @@ class Reaper(object):
                 self.persistent_state = self.state = new_state
                 unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
                 log.info('monitoring   %d items, %d not reaped' % (len(self.state), unreaped_cnt))
-                log.debug('reap time    %.1fs' % (datetime.datetime.utcnow() - reap_start).total_seconds())
                 if self.oneshot and unreaped_cnt == 0:
                     break
             else:
@@ -179,7 +183,7 @@ class Reaper(object):
             else:
                 log.warning('periph data %s %s does not exist' % (log_info, pdn))
 
-    def upload(self, path, log_info):
+    def upload(self, path):
         for filename in os.listdir(path):
             filepath = os.path.join(path, filename)
             log.info('hashing      %s' % filename)
@@ -200,7 +204,7 @@ class Reaper(object):
                         return False
                     else:
                         if r.status_code in [200, 202]:
-                            log.debug('success      %s [%s/s]' % (filename, hrsize(os.path.getsize(filepath)/upload_duration)))
+                            log.info('uploaded     %s [%s/s]' % (filename, hrsize(os.path.getsize(filepath)/upload_duration)))
                         else:
                             log.warning('failure      %s: %s %s' % (filename, r.status_code, r.reason))
                             return False

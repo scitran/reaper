@@ -13,7 +13,6 @@ import datetime
 
 import reaper
 import gephysio
-import tempdir as tempfile
 
 import scitran.data.medimg.pfile as scipfile
 logging.getLogger('scitran.data').setLevel(logging.INFO)
@@ -50,7 +49,7 @@ class PFileReaper(reaper.Reaper):
             i_state[os.path.basename(fp)] = reaper.ReaperItem(state, path=fp)
         return i_state
 
-    def reap(self, _id, item):
+    def reap(self, _id, item, tempdir):
         try:
             pfile = scipfile.PFile(item['path'], timezone=self.timezone)
         except (IOError, scipfile.PFileError):
@@ -65,43 +64,42 @@ class PFileReaper(reaper.Reaper):
                 log.info('ignoring     %s (non-matching patient ID)' % _id)
             else:
                 name_prefix = pfile.series_uid + '_' + str(pfile.acq_no)
-                with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir_path:
-                    reap_path = tempdir_path + '/' + name_prefix + '_' + scipfile.PFile.filetype
-                    os.mkdir(reap_path)
-                    auxfiles = [(ap, _id + '_' + ap.rsplit('_', 1)[-1]) for ap in glob.glob(item['path'] + '_' + pfile.series_uid + '_*')]
-                    log.debug('staging      %s%s' % (_id, ', ' + ', '.join([af[1] for af in auxfiles]) if auxfiles else ''))
-                    os.symlink(item['path'], os.path.join(reap_path, _id))
-                    for af in auxfiles:
-                        os.symlink(af[0], os.path.join(reap_path, af[1]))
-                    pfile_size = reaper.hrsize(item['state']['size'])
-                    log.info('reaping.tgz  %s [%s%s]' % (_id, pfile_size, ' + %d aux files' % len(auxfiles) if auxfiles else ''))
-                    metadata = {
-                        'filetype': scipfile.PFile.filetype,
-                        'timezone': self.timezone,
-                        'header': {
-                            'group': pfile.nims_group_id,
-                            'project': pfile.nims_project,
-                            'session': pfile.nims_session_id,
-                            'session_no': pfile.series_no,
-                            'session_desc': pfile.series_desc,
-                            'acquisition': pfile.nims_acquisition_id,
-                            'acquisition_no': pfile.acq_no,
-                            'timestamp': pfile.nims_timestamp,
-                        },
-                    }
-                    try:
-                        reaper.create_archive(reap_path+'.tgz', reap_path, os.path.basename(reap_path), metadata, dereference=True, compresslevel=4)
-                        shutil.rmtree(reap_path)
-                    except (IOError):
-                        success = False
-                        log.warning('reap error   %s%s' % (_id, ' or aux files' if auxfiles else ''))
-                    else:
-                        self.reap_peripheral_data(tempdir_path, pfile, name_prefix, _id)
-                        if self.upload(tempdir_path, _id):
-                            success = True
-                            log.info('done         %s' % _id)
-                        else:
-                            success = False
+                reap_path = tempdir + '/' + name_prefix + '_' + scipfile.PFile.filetype
+                os.mkdir(reap_path)
+                auxfiles = [(ap, _id + '_' + ap.rsplit('_', 1)[-1]) for ap in glob.glob(item['path'] + '_' + pfile.series_uid + '_*')]
+                log.debug('staging      %s%s' % (_id, ', ' + ', '.join([af[1] for af in auxfiles]) if auxfiles else ''))
+                os.symlink(item['path'], os.path.join(reap_path, _id))
+                for af in auxfiles:
+                    os.symlink(af[0], os.path.join(reap_path, af[1]))
+                pfile_size = reaper.hrsize(item['state']['size'])
+                metadata = {
+                    'filetype': scipfile.PFile.filetype,
+                    'timezone': self.timezone,
+                    'header': {
+                        'group': pfile.nims_group_id,
+                        'project': pfile.nims_project,
+                        'session': pfile.nims_session_id,
+                        'session_no': pfile.series_no,
+                        'session_desc': pfile.series_desc,
+                        'acquisition': pfile.nims_acquisition_id,
+                        'acquisition_no': pfile.acq_no,
+                        'timestamp': pfile.nims_timestamp,
+                    },
+                }
+                reap_start = datetime.datetime.utcnow()
+                auxfile_str = ' + %d aux files' % len(auxfiles) if auxfiles else ''
+                log.info('reaping.tgz  %s [%s%s]' % (_id, pfile_size, auxfile_str))
+                try:
+                    reaper.create_archive(reap_path+'.tgz', reap_path, os.path.basename(reap_path), metadata, dereference=True, compresslevel=4)
+                    shutil.rmtree(reap_path)
+                except (IOError):
+                    success = False
+                    log.warning('reap error   %s%s' % (_id, ' or aux files' if auxfiles else ''))
+                else:
+                    success = True
+                    reap_time = (datetime.datetime.utcnow() - reap_start).total_seconds()
+                    log.info('reaped.tgz   %s [%s%s] in %.1fs' % (_id, pfile_size, auxfile_str, reap_time))
+                    self.reap_peripheral_data(tempdir, pfile, name_prefix, _id)
         return success
 
 

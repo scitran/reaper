@@ -19,7 +19,7 @@ def reap(name, data_path, reap_path, reap_data, reap_name, log, log_info, tempdi
     if sleep_time > 0:
         log.info('periph data  %s waiting for %s for %ds' % (log_info, name, sleep_time))
         time.sleep(sleep_time)
-    while True:
+    for i in range(15):
         try:
             physio_files = os.listdir(data_path)
         except OSError:
@@ -28,7 +28,10 @@ def reap(name, data_path, reap_path, reap_data, reap_name, log, log_info, tempdi
             break
         else:
             log.warning('periph data  %s %s temporarily unavailable' % (log_info, name))
-            time.sleep(5)
+            time.sleep(60)
+    else:
+        log.error('periph data  %s %s permanently unavailable - giving up' % (log_info, name))
+        return
     physio_tuples = filter(lambda pt: pt[0], [(re.match('.+_%s_([0-9_]{18,20})$' % reap_data.psd_name, pfn), pfn) for pfn in physio_files])
     physio_tuples = [(datetime.datetime.strptime(pts.group(1), '%m%d%Y%H_%M_%S_%f'), pfn) for pts, pfn in physio_tuples]
     physio_tuples = filter(lambda pt: lower_time_bound <= pt[0] <= upper_time_bound, physio_tuples)
