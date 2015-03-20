@@ -208,7 +208,6 @@ class Reaper(object):
                 if success:
                     log.info('uploaded     %s [%s/s]' % (filename, hrsize(os.path.getsize(filepath)/upload_duration)))
                 else:
-                    log.warning('failure      %s: %s %s' % (filename, r.status_code, r.reason))
                     return False
         return True
 
@@ -224,6 +223,7 @@ class Reaper(object):
                 if r.status_code in [200, 202]:
                     return True
                 else:
+                    log.warning('failure      %s: %s %s' % (filename, r.status_code, r.reason))
                     return False
 
     def s3_upload(self, filename, filepath, digest, uri):
