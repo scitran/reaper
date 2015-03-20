@@ -24,8 +24,8 @@ class PFileReaper(reaper.Reaper):
         self.data_glob = os.path.join(options.path, 'P?????.7')
         super(PFileReaper, self).__init__(options.path.strip('/').replace('/', '_'), options)
         self.anonymize = options.anonymize
-        self.pat_id = options.patid.replace('*','.*')
-        self.discard_ids = options.discard.split()
+        self.whitelist = options.whitelist.replace('*','.*')
+        self.blacklist = options.blacklist.split()
         self.peripheral_data_reapers['gephysio'] = gephysio.reap
 
     def state_str(self, state):
@@ -56,10 +56,10 @@ class PFileReaper(reaper.Reaper):
             success = False
             log.warning('skipping     %s (disappeared or unparsable)' % _id)
         else:
-            if pfile.patient_id.strip('/').lower() in self.discard_ids:
+            if pfile.patient_id.strip('/').lower() in self.blacklist:
                 success = True
                 log.info('discarding   %s' % _id)
-            elif not re.match(self.pat_id, pfile.patient_id):
+            elif not re.match(self.whitelist, pfile.patient_id):
                 success = True
                 log.info('ignoring     %s (non-matching patient ID)' % _id)
             else:
@@ -109,7 +109,8 @@ if __name__ == '__main__':
     ]
     optional_args = [
         (('-A', '--no-anonymize'), dict(dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')),
-        (('-d', '--discard'), dict(default='discard', help='space-separated list of Patient IDs to discard')),
-        (('-i', '--patid'), dict(default='*', help='glob for Patient IDs to reap ["*"]')),
+        (('-b', '--blacklist'), dict(default='discard', help='space-separated list of identifiers to discard ["discard"]')),
+        (('-w', '--whitelist'), dict(default='*', help='glob for identifiers to reap ["*"]')),
+        (('-i', '--identifier'), dict(default='PatientID', help='metadata field to use for identification ["PatientID"]')),
     ]
     reaper.main(PFileReaper, positional_args, optional_args)
