@@ -63,7 +63,7 @@ class DicomReaper(reaper.Reaper):
     def reap(self, _id, item, tempdir):
         if item['state']['images'] == 0:
             log.info('ignoring     %s (zero images)' % _id)
-            return True
+            return None
         reap_start = datetime.datetime.utcnow()
         log.info('reaping      %s (%s)' % (_id, self.state_str(item['state'])))
         reap_cnt = self.scu.move(scu.SeriesQuery(StudyInstanceUID='', SeriesInstanceUID=_id), tempdir)
@@ -73,10 +73,10 @@ class DicomReaper(reaper.Reaper):
             dcm = self.DicomFile(filepaths[0])
             if dcm.patient_id.strip('/').lower() in self.blacklist:
                 log.info('discarding   %s' % _id)
-                return True
+                return None
             if not re.match(self.whitelist, dcm.patient_id):
                 log.info('ignoring     %s (non-matching patient ID)' % _id)
-                return True
+                return None
         if reap_cnt == item['state']['images']:
             acq_info = self.split_into_acquisitions(_id, item, tempdir, filepaths)
             for ai in acq_info:

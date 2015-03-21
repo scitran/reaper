@@ -53,14 +53,14 @@ class PFileReaper(reaper.Reaper):
         try:
             pfile = scipfile.PFile(item['path'], timezone=self.timezone)
         except (IOError, scipfile.PFileError):
-            success = False
+            success = None
             log.warning('skipping     %s (disappeared or unparsable)' % _id)
         else:
             if pfile.patient_id.strip('/').lower() in self.blacklist:
-                success = True
+                success = None
                 log.info('discarding   %s' % _id)
             elif not re.match(self.whitelist, pfile.patient_id):
-                success = True
+                success = None
                 log.info('ignoring     %s (non-matching patient ID)' % _id)
             else:
                 name_prefix = pfile.series_uid + '_' + str(pfile.acq_no)

@@ -113,21 +113,24 @@ class Reaper(object):
                         item['failures'] = state_item['failures']
                         if not state_item['reaped'] and item['state'] == state_item['state']:
                             with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir:
-                                item['reaped'] = self.reap(_id, item, tempdir)
+                                item['reaped'] = self.reap(_id, item, tempdir) # returns True, False, None
                                 if item['reaped']:
                                     item['failures'] = 0
                                     if not self.upload(tempdir):
                                         item['reaped'] = False
+                                elif item['reaped'] is None: # mark skipped or discarded items as reaped
+                                    item['reaped'] == True
                                 else:
                                     item['failures'] += 1
                                     log.warning('failure      %s (%d failures)' % (_id, item['failures']))
                                     if item['failures'] > 9:
                                         item['reaped'] = True
+                                        item['abandoned'] = True
                                         log.warning('abandoning   %s (%s)' % (_id, self.state_str(item['state'])))
                         elif item['state'] != state_item['state']:
                             item['reaped'] = False
                             log.info('monitoring   %s (%s)' % (_id, self.state_str(item['state'])))
-                        else:
+                        else: # item has been reaped before and didn't change
                             item['reaped'] = True
                     else:
                         log.info('discovered   %s (%s)' % (_id, self.state_str(item['state'])))
@@ -159,7 +162,8 @@ class Reaper(object):
             try:
                 with open(self.persitence_file, 'r') as persitence_file:
                     state = json.load(persitence_file, object_hook=datetime_decoder)
-                log.info('loaded       %d items from persistence file' % len(state))
+                unreaped_cnt = len([v for v in state.itervalues() if not v['reaped']])
+                log.info('loaded       %d items from persistence file, %d not reaped' % (len(state), unreaped_cnt))
             except:
                 query_start = datetime.datetime.now()
                 state = self.instrument_query()
