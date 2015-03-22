@@ -107,31 +107,17 @@ class Reaper(object):
             reap_start = datetime.datetime.utcnow()
             log.debug('query time   %.1fs' % (reap_start - query_start).total_seconds())
             if new_state:
+                reap_queue = []
                 for _id, item in new_state.iteritems():
                     state_item = self.state.pop(_id, None)
                     if state_item:
+                        item['reaped'] = state_item['reaped']
                         item['failures'] = state_item['failures']
-                        if not state_item['reaped'] and item['state'] == state_item['state']:
-                            with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir:
-                                item['reaped'] = self.reap(_id, item, tempdir) # returns True, False, None
-                                if item['reaped']:
-                                    item['failures'] = 0
-                                    if not self.upload(tempdir):
-                                        item['reaped'] = False
-                                elif item['reaped'] is None: # mark skipped or discarded items as reaped
-                                    item['reaped'] == True
-                                else:
-                                    item['failures'] += 1
-                                    log.warning('failure      %s (%d failures)' % (_id, item['failures']))
-                                    if item['failures'] > 9:
-                                        item['reaped'] = True
-                                        item['abandoned'] = True
-                                        log.warning('abandoning   %s (%s)' % (_id, self.state_str(item['state'])))
+                        if not item['reaped'] and item['state'] == state_item['state']:
+                            reap_queue.append((_id, item))
                         elif item['state'] != state_item['state']:
                             item['reaped'] = False
                             log.info('monitoring   %s (%s)' % (_id, self.state_str(item['state'])))
-                        else: # item has been reaped before and didn't change
-                            item['reaped'] = True
                     else:
                         log.info('discovered   %s (%s)' % (_id, self.state_str(item['state'])))
                 for _id, item in self.state.iteritems(): # retain absent, but recently seen, items
@@ -143,6 +129,26 @@ class Reaper(object):
                     else:
                         log.debug('purging      %s' % _id)
                 self.persistent_state = self.state = new_state
+                reap_queue_len = len(reap_queue)
+                for i, _id_item in enumerate(reap_queue):
+                    _id, item = _id_item
+                    log.info('reap queue   item %d of %d' % (i+1, reap_queue_len))
+                    with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir:
+                        item['reaped'] = self.reap(_id, item, tempdir) # returns True, False, None
+                        if item['reaped']:
+                            item['failures'] = 0
+                            if not self.upload(tempdir):
+                                item['reaped'] = False
+                        elif item['reaped'] is None: # mark skipped or discarded items as reaped
+                            item['reaped'] = True
+                        else:
+                            item['failures'] += 1
+                            log.warning('failure      %s (%d failures)' % (_id, item['failures']))
+                            if item['failures'] > 9:
+                                item['reaped'] = True
+                                item['abandoned'] = True
+                                log.warning('abandoning   %s (%s)' % (_id, self.state_str(item['state'])))
+                    self.persistent_state = self.state
                 unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
                 log.info('monitoring   %d items, %d not reaped' % (len(self.state), unreaped_cnt))
                 if self.oneshot and unreaped_cnt == 0:
@@ -154,7 +160,8 @@ class Reaper(object):
                 log.info('sleeping     %.1fs' % sleeptime)
                 time.sleep(sleeptime)
 
-    def get_persistent_state(self):
+    @property
+    def persistent_state(self):
         log.info('initializing ' + self.__class__.__name__)
         if self.oneshot or self.reap_existing:
             state = {}
@@ -164,21 +171,24 @@ class Reaper(object):
                     state = json.load(persitence_file, object_hook=datetime_decoder)
                 unreaped_cnt = len([v for v in state.itervalues() if not v['reaped']])
                 log.info('loaded       %d items from persistence file, %d not reaped' % (len(state), unreaped_cnt))
+                log.info('initializing instrument communication...')
             except:
                 query_start = datetime.datetime.now()
                 state = self.instrument_query()
                 log.debug('query time   %.1fs' % (datetime.datetime.now() - query_start).total_seconds())
                 for item in state.itervalues():
                     item['reaped'] = True
-                self.set_persistent_state(state)
+                self.persistent_state = state
                 log.info('ignoring     %d items currently on instrument' % len(state))
+                log.info('sleeping     %.1fs' % self.sleeptime)
                 time.sleep(self.sleeptime)
         return state
-    def set_persistent_state(self, state):
+
+    @persistent_state.setter
+    def persistent_state(self, state):
         with open(self.persitence_file, 'w') as persitence_file:
             json.dump(state, persitence_file, indent=4, separators=(',', ': '), default=datetime_encoder)
             persitence_file.write('\n')
-    persistent_state = property(get_persistent_state, set_persistent_state)
 
     def reap_peripheral_data(self, reap_path, reap_data, reap_name, log_info):
         for pdn, pdp in self.peripheral_data.iteritems():
@@ -249,7 +259,7 @@ def main(cls, positional_args, optional_args):
     arg_parser.add_argument('-s', '--sleeptime', type=int, default=60, help='time to sleep before checking for new data [60s]')
     arg_parser.add_argument('-g', '--graceperiod', type=int, default=86400, help='time to keep vanished data alive [24h]')
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
-    arg_parser.add_argument('-u', '--upload', action='append', help='upload URI')
+    arg_parser.add_argument('-u', '--upload', action='append', default=[], help='upload URI')
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='retrieve all existing data and exit')
@@ -264,7 +274,7 @@ def main(cls, positional_args, optional_args):
     args = arg_parser.parse_args()
 
     if not args.upload:
-        log.warning('no upload URL provided; data will be purged after reaping')
+        log.warning('no upload URI provided; === DATA WILL BE PURGED AFTER REAPING ===')
 
     if args.timezone is None:
         args.timezone = tzlocal.get_localzone().zone
