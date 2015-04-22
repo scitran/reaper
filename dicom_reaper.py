@@ -141,12 +141,13 @@ class DicomReaper(reaper.Reaper):
                 firstname, lastname = scidcm.parse_patient_name(dcm.get('PatientName', ''))
                 self.firstname_hash = hashlib.sha256(firstname).hexdigest() if firstname else None
                 self.lastname_hash = hashlib.sha256(lastname).hexdigest() if lastname else None
-                if dcm.PatientBirthDate:
+                if dcm.get('PatientBirthDate'):
                     dob = datetime.datetime.strptime(dcm.PatientBirthDate, '%Y%m%d')
-                    months = 12 * (self.timestamp.year - dob.year) + (self.timestamp.month - dob.month) - (self.timestamp.day < dob.day)
+                    months = 12 * (study_datetime.year - dob.year) + (study_datetime.month - dob.month) - (study_datetime.day < dob.day)
                     dcm.PatientAge = '%03dM' % months if months < 960 else '%03dY' % (months/12)
-                del dcm.PatientName
-                del dcm.PatientBirthDate
+                    del dcm.PatientBirthDate
+                if dcm.get('PatientName'):
+                    del dcm.PatientName
                 dcm.save_as(filepath)
 
 
