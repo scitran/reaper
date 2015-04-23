@@ -13,6 +13,9 @@ import scitran.data.medimg.gephysio
 
 
 def reap(name, data_path, reap_path, reap_data, reap_name, log, log_info, tempdir):
+    if not reap_data.psd_name or not re.match(r'^[a-zA-Z0-9_+-]+$', reap_data.psd_name):
+        log.warning('periph data  %s %s invalid PSD name' % (log_info, name))
+        return
     lower_time_bound = reap_data.timestamp + datetime.timedelta(seconds=reap_data.prescribed_duration or 0) - datetime.timedelta(seconds=15)
     upper_time_bound = lower_time_bound + datetime.timedelta(seconds=180)
     sleep_time = (upper_time_bound - datetime.datetime.now()).total_seconds()
