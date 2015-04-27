@@ -10,16 +10,21 @@ log = logging.getLogger('reaper')
 logging.getLogger('requests').setLevel(logging.WARNING)
 
 import os
+import sys
 import json
+import pytz
 import time
 import hashlib
 import tarfile
+import tzlocal
 import calendar
 import datetime
 import requests
 
 import tempdir as tempfile
 
+SLEEPTIME = 60
+GRACEPERIOD = 86400
 DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
@@ -84,23 +89,53 @@ class Reaper(object):
 
     def __init__(self, id_, options):
         self.id_ = id_
-        self.upload_uris = options.upload
-        self.peripheral_data = dict(options.peripheral)
-        self.sleeptime = options.sleeptime
-        self.graceperiod = datetime.timedelta(seconds=options.graceperiod)
-        self.reap_existing = options.existing
-        self.tempdir = options.tempdir
-        self.timezone = options.timezone
-        self.oneshot = options.oneshot
+        self.upload_uris = options.get('upload') or []
+        self.peripheral_data = dict(options.get('peripheral') or [])
+        self.sleeptime = options.get('sleeptime') or SLEEPTIME
+        self.graceperiod = datetime.timedelta(seconds=(options.get('graceperiod') or GRACEPERIOD))
+        self.reap_existing = options.get('existing') or False
+        self.tempdir = options.get('tempdir')
+        self.timezone = options.get('timezone')
+        self.oneshot = options.get('oneshot') or False
 
+        self.state = {}
         self.persitence_file = os.path.join(os.path.dirname(__file__), '.%s.json' % self.id_)
-        self.state = self.persistent_state
         self.alive = True
+
+        if not options.get('upload'):
+            log.warning('no upload URI provided; === DATA WILL BE PURGED AFTER REAPING ===')
+
+        if self.timezone is None:
+            self.timezone = tzlocal.get_localzone().zone
+        else:
+            try:
+                pytz.timezone(self.timezone)
+            except pytz.UnknownTimeZoneError:
+                log.error('invalid timezone')
+                sys.exit(1)
 
     def halt(self):
         self.alive = False
 
     def run(self):
+        log.info('initializing ' + self.__class__.__name__ + '...')
+        if self.oneshot or self.reap_existing:
+            self.state = {}
+        else:
+            self.state = self.persistent_state
+            if self.state:
+                unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
+                log.info('loaded       %d items from persistence file, %d not reaped' % (len(self.state), unreaped_cnt))
+            else:
+                query_start = datetime.datetime.now()
+                self.state = self.instrument_query()
+                log.debug('query time   %.1fs' % (datetime.datetime.now() - query_start).total_seconds())
+                for item in self.state.itervalues():
+                    item['reaped'] = True
+                self.persistent_state = self.state
+                log.info('ignoring     %d items currently on instrument' % len(self.state))
+                log.info('sleeping     %.1fs' % self.sleeptime)
+                time.sleep(self.sleeptime)
         while self.alive:
             query_start = datetime.datetime.utcnow()
             new_state = self.instrument_query()
@@ -162,26 +197,12 @@ class Reaper(object):
 
     @property
     def persistent_state(self):
-        log.info('initializing ' + self.__class__.__name__)
-        if self.oneshot or self.reap_existing:
+        try:
+            with open(self.persitence_file, 'r') as persitence_file:
+                state = json.load(persitence_file, object_hook=datetime_decoder)
+            # TODO: add some consistency checks here and possibly drop state
+        except:
             state = {}
-        else:
-            try:
-                with open(self.persitence_file, 'r') as persitence_file:
-                    state = json.load(persitence_file, object_hook=datetime_decoder)
-                unreaped_cnt = len([v for v in state.itervalues() if not v['reaped']])
-                log.info('loaded       %d items from persistence file, %d not reaped' % (len(state), unreaped_cnt))
-                log.info('initializing instrument communication...')
-            except:
-                query_start = datetime.datetime.now()
-                state = self.instrument_query()
-                log.debug('query time   %.1fs' % (datetime.datetime.now() - query_start).total_seconds())
-                for item in state.itervalues():
-                    item['reaped'] = True
-                self.persistent_state = state
-                log.info('ignoring     %d items currently on instrument' % len(state))
-                log.info('sleeping     %.1fs' % self.sleeptime)
-                time.sleep(self.sleeptime)
         return state
 
     @persistent_state.setter
@@ -248,18 +269,15 @@ class Reaper(object):
 
 
 def main(cls, positional_args, optional_args):
-    import sys
-    import pytz
     import signal
-    import tzlocal
     import argparse
 
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('-p', '--peripheral', nargs=2, action='append', default=[], help='path to peripheral data')
-    arg_parser.add_argument('-s', '--sleeptime', type=int, default=60, help='time to sleep before checking for new data [60s]')
-    arg_parser.add_argument('-g', '--graceperiod', type=int, default=86400, help='time to keep vanished data alive [24h]')
+    arg_parser.add_argument('-p', '--peripheral', nargs=2, action='append', help='path to peripheral data')
+    arg_parser.add_argument('-s', '--sleeptime', type=int, help='time to sleep before checking for new data [60s]')
+    arg_parser.add_argument('-g', '--graceperiod', type=int, help='time to keep vanished data alive [24h]')
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
-    arg_parser.add_argument('-u', '--upload', action='append', default=[], help='upload URI')
+    arg_parser.add_argument('-u', '--upload', action='append', help='upload URI')
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='retrieve all existing data and exit')
@@ -270,22 +288,9 @@ def main(cls, positional_args, optional_args):
     og = arg_parser.add_argument_group(cls.__name__ + ' options')
     for args, kwargs in optional_args:
         og.add_argument(*args, **kwargs)
-
     args = arg_parser.parse_args()
 
-    if not args.upload:
-        log.warning('no upload URI provided; === DATA WILL BE PURGED AFTER REAPING ===')
-
-    if args.timezone is None:
-        args.timezone = tzlocal.get_localzone().zone
-    else:
-        try:
-            pytz.timezone(args.timezone)
-        except pytz.UnknownTimeZoneError:
-            log.error('invalid timezone')
-            sys.exit(1)
-
-    reaper = cls(args)
+    reaper = cls(vars(args))
 
     def term_handler(signum, stack):
         reaper.halt()

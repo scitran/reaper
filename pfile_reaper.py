@@ -21,11 +21,14 @@ logging.getLogger('scitran.data').setLevel(logging.INFO)
 class PFileReaper(reaper.Reaper):
 
     def __init__(self, options):
-        self.data_glob = os.path.join(options.path, 'P?????.7')
-        super(PFileReaper, self).__init__(options.path.strip('/').replace('/', '_'), options)
-        self.anonymize = options.anonymize
-        self.whitelist = options.whitelist.replace('*','.*')
-        self.blacklist = options.blacklist.split()
+        if not os.path.isdir(options.get('path')):
+            log.error('path argument must be a directory')
+            sys.exit(1)
+        self.data_glob = os.path.join(options.get('path'), 'P?????.7')
+        super(PFileReaper, self).__init__(options.get('path').strip('/').replace('/', '_'), options)
+        self.anonymize = options.get('anonymize')
+        self.whitelist = options.get('whitelist').replace('*','.*')
+        self.blacklist = options.get('blacklist').split()
         self.peripheral_data_reapers['gephysio'] = gephysio.reap
 
     def state_str(self, state):

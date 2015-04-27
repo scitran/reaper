@@ -39,12 +39,15 @@ class DicomReaper(reaper.Reaper):
     }
 
     def __init__(self, options):
-        self.scu = scu.SCU(options.host, options.port, options.return_port, options.aet, options.aec)
+        if not all((options.get('host'), options.get('port'), options.get('return_port'), options.get('aet'), options.get('aec'))):
+            log.error()
+            sys.exit(1)
+        self.scu = scu.SCU(options.get('host'), options.get('port'), options.get('return_port'), options.get('aet'), options.get('aec'))
         super(DicomReaper, self).__init__(self.scu.aec, options)
-        self.anonymize = options.anonymize
-        self.whitelist = options.whitelist.replace('*','.*')
-        self.blacklist = options.blacklist.split()
-        self.identifier = options.identifier
+        self.anonymize = options.get('anonymize')
+        self.whitelist = options.get('whitelist').replace('*','.*')
+        self.blacklist = options.get('blacklist').split()
+        self.identifier = options.get('identifier')
         self.peripheral_data_reapers['gephysio'] = gephysio.reap
 
     def state_str(self, state):
