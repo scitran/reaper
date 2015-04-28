@@ -51,10 +51,12 @@ class SCU(object):
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
         except Exception as ex:
             log.debug(ex)
-            output and self.log.debug(output)
+            output and log.debug(output)
         if output and re.search('DIMSE Status .* Success', output):
             return [Response(query.kwargs.keys(), match_obj.groupdict()) for match_obj in RESPONSE_RE.finditer(output)]
         else:
+            log.warning(cmd)
+            log.warning(output)
             return []
 
     def move(self, query, dest_path='.'):
