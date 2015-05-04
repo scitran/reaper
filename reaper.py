@@ -152,9 +152,9 @@ class Reaper(object):
                             reap_queue.append((_id, item))
                         elif item['state'] != state_item['state']:
                             item['reaped'] = False
-                            log.info('monitoring   %s (%s)' % (_id, self.state_str(item['state'])))
+                            log.info('monitoring   ' + self.state_str(_id, item['state']))
                     else:
-                        log.info('discovered   %s (%s)' % (_id, self.state_str(item['state'])))
+                        log.info('discovered   ' + self.state_str(_id, item['state']))
                 for _id, item in self.state.iteritems(): # retain absent, but recently seen, items
                     if item['lastseen'] + self.graceperiod > reap_start:
                         if not item.get('retained', False):
@@ -182,7 +182,7 @@ class Reaper(object):
                             if item['failures'] > 9:
                                 item['reaped'] = True
                                 item['abandoned'] = True
-                                log.warning('abandoning   %s (%s)' % (_id, self.state_str(item['state'])))
+                                log.warning('abandoning   ' + self.state_str(_id, item['state']))
                     self.persistent_state = self.state
                 unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
                 log.info('monitoring   %d items, %d not reaped' % (len(self.state), unreaped_cnt))

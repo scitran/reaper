@@ -1,4 +1,4 @@
 .DS_Store
 .*sw[op]
 *.py[co]
-*.datetime
+*.json

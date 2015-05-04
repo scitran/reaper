@@ -47,11 +47,10 @@ class DicomReaper(reaper.Reaper):
         self.anonymize = options.get('anonymize')
         self.whitelist = options.get('whitelist').replace('*','.*')
         self.blacklist = options.get('blacklist').split()
-        self.identifier = options.get('identifier')
         self.peripheral_data_reapers['gephysio'] = gephysio.reap
 
-    def state_str(self, state):
-        return ', '.join(['%s %s' % (v, k) for k, v in state.iteritems()])
+    def state_str(self, _id, state):
+        return '%s (%s)' % (_id, ','.join(['%s %s' % (v, k) for k, v in state.iteritems()]))
 
     def instrument_query(self):
         i_state = {}
@@ -68,7 +67,7 @@ class DicomReaper(reaper.Reaper):
             log.info('ignoring     %s (zero images)' % _id)
             return None
         reap_start = datetime.datetime.utcnow()
-        log.info('reaping      %s (%s)' % (_id, self.state_str(item['state'])))
+        log.info('reaping      %s' % self.state_str(_id, item['state']))
         reap_cnt = self.scu.move(scu.SeriesQuery(StudyInstanceUID='', SeriesInstanceUID=_id), tempdir)
         filepaths = [os.path.join(tempdir, filename) for filename in os.listdir(tempdir)]
         log.info('reaped       %s (%d images) in %.1fs' % (_id, reap_cnt, (datetime.datetime.utcnow() - reap_start).total_seconds()))
@@ -113,7 +112,6 @@ class DicomReaper(reaper.Reaper):
             metadata = {
                     'filetype': scidcm.Dicom.filetype,
                     'timezone': self.timezone,
-                    'identifier': self.identifier,
                     'overwrite': {
                         'firstname_hash': dcm.firstname_hash,
                         'lastname_hash': dcm.lastname_hash,
@@ -166,6 +164,5 @@ if __name__ == '__main__':
         (('-A', '--no-anonymize'), dict(dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')),
         (('-b', '--blacklist'), dict(default='discard', help='space-separated list of identifiers to discard ["discard"]')),
         (('-w', '--whitelist'), dict(default='*', help='glob for identifiers to reap ["*"]')),
-        (('-i', '--identifier'), dict(default='PatientID', help='metadata field to use for identification ["PatientID"]')),
     ]
     reaper.main(DicomReaper, positional_args, optional_args)

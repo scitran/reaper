@@ -2,6 +2,11 @@
 #
 # @author:  Gunnar Schaefer
 
+# TODO:
+#   - make aux files part of state
+#   - include add pfiles on one uid in state
+#   - add custom state comparision function that does not re-reap when pfiles start to be overwritten
+
 import logging
 log = logging.getLogger('reaper.pfile')
 
@@ -31,8 +36,8 @@ class PFileReaper(reaper.Reaper):
         self.blacklist = options.get('blacklist').split()
         self.peripheral_data_reapers['gephysio'] = gephysio.reap
 
-    def state_str(self, state):
-        return state['mod_time'].strftime(reaper.DATE_FORMAT) + ', ' + reaper.hrsize(state['size'])
+    def state_str(self, _id, state):
+        return '%s, [%s, %s]' % (_id, state['mod_time'].strftime(reaper.DATE_FORMAT), reaper.hrsize(state['size']))
 
     def instrument_query(self):
         i_state = {}
