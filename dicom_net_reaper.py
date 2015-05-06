@@ -4,7 +4,7 @@
 
 """
 apt-get -V install ipython python-virtualenv python-dev dcmtk
-adduser --disabled-password --uid 1000 --gecos "Scitran Reaper" reaper
+adduser --disabled-password --gecos "Scitran Reaper" reaper
 """
 
 import logging
@@ -26,7 +26,7 @@ import scitran.data.medimg.dcm as scidcm
 logging.getLogger('scitran.data').setLevel(logging.INFO)
 
 
-class DicomReaper(reaper.Reaper):
+class DicomNetReaper(reaper.Reaper):
 
     query_params = {
         'StudyInstanceUID': '',
@@ -43,7 +43,7 @@ class DicomReaper(reaper.Reaper):
             log.error()
             sys.exit(1)
         self.scu = scu.SCU(options.get('host'), options.get('port'), options.get('return_port'), options.get('aet'), options.get('aec'))
-        super(DicomReaper, self).__init__(self.scu.aec, options)
+        super(DicomNetReaper, self).__init__(self.scu.aec, options)
         self.anonymize = options.get('anonymize')
         self.whitelist = options.get('whitelist').replace('*','.*')
         self.blacklist = options.get('blacklist').split()
@@ -60,7 +60,7 @@ class DicomReaper(reaper.Reaper):
                     'images': int(r['NumberOfSeriesRelatedInstances']),
                     }
             i_state[r['SeriesInstanceUID']] = reaper.ReaperItem(state)
-        return i_state
+        return i_state or None # FIXME should return None only on communication error
 
     def reap(self, _id, item, tempdir):
         if item['state']['images'] == 0:
@@ -165,4 +165,4 @@ if __name__ == '__main__':
         (('-b', '--blacklist'), dict(default='discard', help='space-separated list of identifiers to discard ["discard"]')),
         (('-w', '--whitelist'), dict(default='*', help='glob for identifiers to reap ["*"]')),
     ]
-    reaper.main(DicomReaper, positional_args, optional_args)
+    reaper.main(DicomNetReaper, positional_args, optional_args)

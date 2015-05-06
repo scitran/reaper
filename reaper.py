@@ -4,7 +4,6 @@ import logging
 logging.basicConfig(
         format='%(asctime)s %(name)16.16s:%(levelname)4.4s %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
-        level=logging.DEBUG,
         )
 log = logging.getLogger('reaper')
 logging.getLogger('requests').setLevel(logging.WARNING)
@@ -97,6 +96,7 @@ class Reaper(object):
         self.tempdir = options.get('tempdir')
         self.timezone = options.get('timezone')
         self.oneshot = options.get('oneshot') or False
+        log.setLevel(getattr(logging, (options.get('loglevel') or 'info').upper()))
 
         self.state = {}
         self.persitence_file = os.path.join(os.path.dirname(__file__), '.%s.json' % self.id_)
@@ -129,11 +129,14 @@ class Reaper(object):
             else:
                 query_start = datetime.datetime.now()
                 self.state = self.instrument_query()
-                log.debug('query time   %.1fs' % (datetime.datetime.now() - query_start).total_seconds())
-                for item in self.state.itervalues():
-                    item['reaped'] = True
-                self.persistent_state = self.state
-                log.info('ignoring     %d items currently on instrument' % len(self.state))
+                if self.state is not None:
+                    log.debug('query time   %.1fs' % (datetime.datetime.now() - query_start).total_seconds())
+                    for item in self.state.itervalues():
+                        item['reaped'] = True
+                    self.persistent_state = self.state
+                    log.info('ignoring     %d items currently on instrument' % len(self.state))
+                else:
+                    log.warning('unable to retrieve instrument state')
                 log.info('sleeping     %.1fs' % self.sleeptime)
                 time.sleep(self.sleeptime)
         while self.alive:
@@ -141,7 +144,7 @@ class Reaper(object):
             new_state = self.instrument_query()
             reap_start = datetime.datetime.utcnow()
             log.debug('query time   %.1fs' % (reap_start - query_start).total_seconds())
-            if new_state:
+            if new_state is not None:
                 reap_queue = []
                 for _id, item in new_state.iteritems():
                     state_item = self.state.pop(_id, None)
@@ -192,7 +195,7 @@ class Reaper(object):
                 log.warning('unable to retrieve instrument state')
             sleeptime = self.sleeptime - (datetime.datetime.utcnow() - reap_start).total_seconds()
             if sleeptime > 0:
-                log.info('sleeping     %.1fs' % sleeptime)
+                log.debug('sleeping     %.1fs' % sleeptime)
                 time.sleep(sleeptime)
 
     @property
@@ -281,6 +284,7 @@ def main(cls, positional_args, optional_args):
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='retrieve all existing data and exit')
+    arg_parser.add_argument('-l', '--loglevel', help='log level [INFO]')
 
     pg = arg_parser.add_argument_group(cls.__name__ + ' arguments')
     for args, kwargs in positional_args:
