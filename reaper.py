@@ -225,7 +225,7 @@ class Reaper(object):
         for filename in os.listdir(path):
             filepath = os.path.join(path, filename)
             log.info('hashing      %s' % filename)
-            hash_ = hashlib.sha1()
+            hash_ = hashlib.md5()
             with open(filepath, 'rb') as fd:
                 for chunk in iter(lambda: fd.read(1048577 * hash_.block_size), ''):
                     hash_.update(chunk)
