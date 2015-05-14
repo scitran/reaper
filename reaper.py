@@ -250,10 +250,14 @@ class Reaper(object):
         return True
 
     def http_upload(self, filename, filepath, digest, uri):
-        headers = {'User-Agent': 'reaper ' + self.id_, 'Content-MD5': digest}
+        headers = {
+                'User-Agent': 'reaper ' + self.id_,
+                'Content-MD5': digest,
+                'Content-Disposition': 'attachment; filename="%s_%s"' % (self.id_, filename),
+                }
         with open(filepath, 'rb') as fd:
             try:
-                r = requests.put(uri + '?filename=%s_%s' % (self.id_, filename), data=fd, headers=headers)
+                r = requests.put(uri, data=fd, headers=headers)
             except requests.exceptions.ConnectionError as e:
                 log.error('error        %s: %s' % (filename, e))
                 return False
