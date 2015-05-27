@@ -117,6 +117,18 @@ class Reaper(object):
     def halt(self):
         self.alive = False
 
+    def state_str(self, _id, state):
+        pass
+
+    def instrument_query(self):
+        pass
+
+    def reap(self, _id, item, tempdir):
+        pass
+
+    def destroy(self, item):
+        pass
+
     def run(self):
         log.info('initializing ' + self.__class__.__name__ + '...')
         if self.oneshot or self.reap_existing:
@@ -175,7 +187,10 @@ class Reaper(object):
                         item['reaped'] = self.reap(_id, item, tempdir) # returns True, False, None
                         if item['reaped']:
                             item['failures'] = 0
-                            if not self.upload(tempdir):
+                            if self.upload(tempdir):
+                                if self.destructive:
+                                    self.destroy(item)
+                            else:
                                 item['reaped'] = False
                         elif item['reaped'] is None: # mark skipped or discarded items as reaped
                             item['reaped'] = True
@@ -287,6 +302,7 @@ def main(cls, positional_args, optional_args):
     arg_parser.add_argument('-u', '--upload', action='append', help='upload URI')
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
+    arg_parser.add_argument('-d', '--destructive', action='store_true', help='delete data after reaping')
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='retrieve all existing data and exit')
     arg_parser.add_argument('-l', '--loglevel', help='log level [INFO]')
 

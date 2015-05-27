@@ -44,6 +44,8 @@ class DicomFileReaper(reaper.Reaper):
     def instrument_query(self):
         i_state = {}
         for dirpath, dirnames, filenames in os.walk(self.path):
+            if os.path.basename(dirpath).startswith('.'):
+                continue # ignore dotdirectories
             if os.path.samefile(dirpath, self.path):
                 continue # ignore files at top-level of self.path
             if not dirnames and filenames:
@@ -72,16 +74,12 @@ class DicomFileReaper(reaper.Reaper):
                 shutil.move(fp, metadata_path)
             else:
                 try:
-                    dcm = dicom.read_file(fp, stop_before_pixels=True)
+                    dcm = dicom.read_file(fp, stop_before_pixels=True) # ensure file is dicom
                 except:
                     pass
                 else:
                     reap_cnt += 1
-                    #dcm.save_as(reap_path + '/' + fn)
-                    if self.destructive:
-                        shutil.move(fp, reap_path + '/' + fn)
-                    else:
-                        shutil.copyfile(fp, reap_path + '/' + fn)
+                    shutil.copyfile(fp, reap_path + '/' + fn)
         log.info('reaped       %s (%d images) in %.1fs' % (_id, reap_cnt, (datetime.datetime.utcnow() - reap_start).total_seconds()))
         metadata = {}
         if os.path.exists(metadata_path):
@@ -92,9 +90,10 @@ class DicomFileReaper(reaper.Reaper):
         log.info('compressing  %s' % _id)
         reaper.create_archive(reap_path+'.tgz', reap_path, os.path.basename(reap_path), metadata, compresslevel=6)
         shutil.rmtree(reap_path)
-        if self.destructive:
-            shutil.rmtree(item['path'])
         return True
+
+    def destroy(self, item):
+        shutil.rmtree(item['path'])
 
 
 if __name__ == '__main__':
@@ -102,6 +101,5 @@ if __name__ == '__main__':
         (('path',), dict(help='path to DICOM files')),
     ]
     optional_args = [
-        (('-d', '--destructive'), dict(action='store_true', help='delete DICOM files after reaping')),
     ]
     reaper.main(DicomFileReaper, positional_args, optional_args)
