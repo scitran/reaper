@@ -5,8 +5,7 @@ virtualenv reaperenv
 source reaperenv/bin/activate
 pip install -U pip setuptools
 
-pip install git+https://github.com/scitran/pydicom.git@0.9.9_value_vr_mismatch
-python setup.py install
+pip install -r requirements.txt .
 ```
 
 ### Reaping

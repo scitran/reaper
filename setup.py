@@ -17,21 +17,6 @@ setup(name='scitran.reaper',
       url='http://scitran.github.io/',
       packages=find_packages(),
       namespace_packages=['scitran'],
-      install_requires=[
-        'pytz',
-        'tzlocal',
-        'requests',
-        'numpy',
-        'pydicom==0.9.9',
-        'nibabel',
-        'dcmstack',
-        'scitran.data',
-        ],
-      dependency_links=[
-        'https://github.com/scitran/pydicom/archive/v0.9.9.zip#egg=pydicom-0.9.9',
-        'https://github.com/moloney/dcmstack/archive/master.zip#egg=dcmstack-0.7.0',
-        'https://github.com/scitran/data/archive/master.zip#egg=scitran.data-1.0'
-        ],
       entry_points = {
           'console_scripts':
             ['dicom_net_reaper = scitran.reaper.dicom_reaper:main',
