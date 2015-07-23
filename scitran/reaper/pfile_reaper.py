@@ -96,9 +96,9 @@ class PFileReaper(reaper.Reaper):
                 }
                 reap_start = datetime.datetime.utcnow()
                 auxfile_str = ' + %d aux files' % len(auxfiles) if auxfiles else ''
-                log.info('reaping.tgz  %s [%s%s]' % (_id, pfile_size, auxfile_str))
+                log.info('reaping.zip  %s [%s%s]' % (_id, pfile_size, auxfile_str))
                 try:
-                    reaper.create_archive(reap_path+'.tgz', reap_path, os.path.basename(reap_path), metadata, dereference=True, compresslevel=4)
+                    reaper.create_archive(reap_path+'.zip', reap_path, os.path.basename(reap_path), metadata)
                     shutil.rmtree(reap_path)
                 except (IOError):
                     success = False
@@ -106,7 +106,7 @@ class PFileReaper(reaper.Reaper):
                 else:
                     success = True
                     reap_time = (datetime.datetime.utcnow() - reap_start).total_seconds()
-                    log.info('reaped.tgz   %s [%s%s] in %.1fs' % (_id, pfile_size, auxfile_str, reap_time))
+                    log.info('reaped.zip   %s [%s%s] in %.1fs' % (_id, pfile_size, auxfile_str, reap_time))
                     self.reap_peripheral_data(tempdir, pfile, name_prefix, _id)
         return success
 

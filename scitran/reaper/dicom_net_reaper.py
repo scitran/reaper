@@ -81,9 +81,10 @@ class DicomNetReaper(reaper.Reaper):
                 return None
         if reap_cnt == item['state']['images']:
             acq_info = self.split_into_acquisitions(_id, item, tempdir, filepaths)
-            for ai in acq_info:
-                dcm = scidcm.Dicom(ai['path'], timezone=self.timezone)
-                self.reap_peripheral_data(tempdir, dcm, ai['prefix'], ai['log_info'])
+            if self.peripheral_data:
+                for ai in acq_info:
+                    dcm = scidcm.Dicom(ai['path'], timezone=self.timezone)
+                    self.reap_peripheral_data(tempdir, dcm, ai['prefix'], ai['log_info'])
             return True
         else:
             return False
@@ -117,10 +118,10 @@ class DicomNetReaper(reaper.Reaper):
                         'lastname_hash': dcm.lastname_hash,
                         }
                     }
-            reaper.create_archive(arcdir_path+'.tgz', arcdir_path, dir_name, metadata, compresslevel=6)
+            reaper.create_archive(arcdir_path+'.zip', arcdir_path, dir_name, metadata)
             shutil.rmtree(arcdir_path)
             acq_info.append({
-                    'path': arcdir_path+'.tgz',
+                    'path': arcdir_path+'.zip',
                     'prefix': name_prefix,
                     'log_info': '%s%s' % (_id, '.' + acq_no if acq_no is not None else ''),
                     })

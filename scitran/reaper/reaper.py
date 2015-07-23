@@ -14,8 +14,8 @@ import json
 import pytz
 import time
 import hashlib
-import tarfile
 import tzlocal
+import zipfile
 import calendar
 import datetime
 import requests
@@ -53,23 +53,12 @@ def datetime_decoder(dct):
     return dct
 
 
-def create_archive(path, content, arcname, metadata, **kwargs):
-    # write metadata file
-    metadata_filepath = os.path.join(content, 'METADATA.json')
-    with open(metadata_filepath, 'w') as json_file:
-        json.dump(metadata, json_file, default=datetime_encoder)
-        json_file.write('\n')
-    # write digest file
-    digest_filepath = os.path.join(content, 'DIGEST.txt')
-    open(digest_filepath, 'w').close() # touch file, so that it's included in the digest
-    filenames = sorted(os.listdir(content), key=lambda fn: (fn.endswith('.json') and 1) or (fn.endswith('.txt') and 2) or fn)
-    with open(digest_filepath, 'w') as digest_file:
-        digest_file.write('\n'.join(filenames) + '\n')
-    # create archive
-    with tarfile.open(path, 'w:gz', **kwargs) as archive:
-        archive.add(content, arcname, recursive=False) # add the top-level directory
-        for fn in filenames:
-            archive.add(os.path.join(content, fn), os.path.join(arcname, fn))
+def create_archive(path, content, arcname, metadata):
+    with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+        zf.comment = json.dumps(metadata, default=datetime_encoder)
+        zf.write(content, arcname)
+        for fn in os.listdir(content):
+            zf.write(os.path.join(content, fn), os.path.join(arcname, fn))
 
 
 class ReaperItem(dict):
@@ -85,6 +74,7 @@ class ReaperItem(dict):
 class Reaper(object):
 
     peripheral_data_reapers = {}
+    destructive = False
 
     def __init__(self, id_, options):
         self.id_ = id_
@@ -302,7 +292,6 @@ def main(cls, positional_args, optional_args):
     arg_parser.add_argument('-u', '--upload', action='append', help='upload URI')
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
-    arg_parser.add_argument('-d', '--destructive', action='store_true', help='delete data after reaping')
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='retrieve all existing data and exit')
     arg_parser.add_argument('-l', '--loglevel', help='log level [INFO]')
 

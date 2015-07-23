@@ -56,6 +56,6 @@ def reap(name, data_path, reap_path, reap_data, reap_name, log, log_info, tempdi
             os.mkdir(physio_reap_path)
             for pts, pfn in physio_tuples:
                 shutil.copy2(os.path.join(data_path, pfn), physio_reap_path)
-            reaper.create_archive(os.path.join(reap_path, reap_name+'.tgz'), physio_reap_path, reap_name, metadata, compresslevel=6)
+            reaper.create_archive(os.path.join(reap_path, reap_name+'.zip'), physio_reap_path, reap_name, metadata)
     else:
         log.info('periph data  %s %s not found' % (log_info, name))
