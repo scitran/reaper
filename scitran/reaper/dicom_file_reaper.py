@@ -95,11 +95,15 @@ class DicomFileReaper(reaper.Reaper):
     def destroy(self, item):
         shutil.rmtree(item['path'])
 
-
-if __name__ == '__main__':
+def main():
     positional_args = [
         (('path',), dict(help='path to DICOM files')),
     ]
     optional_args = [
     ]
     reaper.main(DicomFileReaper, positional_args, optional_args)
+
+
+if __name__ == '__main__':
+    main()
+

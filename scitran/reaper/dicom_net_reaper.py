@@ -151,8 +151,7 @@ class DicomNetReaper(reaper.Reaper):
                     del dcm.PatientName
                 dcm.save_as(filepath)
 
-
-if __name__ == '__main__':
+def main():
     positional_args = [
         (('host',), dict(help='remote hostname or IP')),
         (('port',), dict(help='remote port')),
@@ -166,3 +165,6 @@ if __name__ == '__main__':
         (('-w', '--whitelist'), dict(default='*', help='glob for identifiers to reap ["*"]')),
     ]
     reaper.main(DicomNetReaper, positional_args, optional_args)
+
+if __name__ == '__main__':
+    main()

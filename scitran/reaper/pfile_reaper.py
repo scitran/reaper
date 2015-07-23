@@ -110,8 +110,7 @@ class PFileReaper(reaper.Reaper):
                     self.reap_peripheral_data(tempdir, pfile, name_prefix, _id)
         return success
 
-
-if __name__ == '__main__':
+def main():
     positional_args = [
         (('path',), dict(help='path to PFiles')),
     ]
@@ -122,3 +121,6 @@ if __name__ == '__main__':
         (('-i', '--identifier'), dict(default='PatientID', help='metadata field to use for identification ["PatientID"]')),
     ]
     reaper.main(PFileReaper, positional_args, optional_args)
+
+if __name__ == '__main__':
+    main()

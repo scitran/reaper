@@ -2,3 +2,4 @@
 .*sw[op]
 *.py[co]
 *.json
+*.egg-info
