@@ -30,7 +30,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'dicom_net_reaper=scitran.reaper.dicom_reaper:main',
+            'dicom_net_reaper=scitran.reaper.dicom_net_reaper:main',
             'dicom_file_reaper=scitran.reaper.dicom_file_reaper:main',
             'pfile_reaper=scitran.reaper.pfile_reaper:main',
         ],
