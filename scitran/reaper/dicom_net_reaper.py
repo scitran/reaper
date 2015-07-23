@@ -103,7 +103,7 @@ class DicomNetReaper(reaper.Reaper):
         log.info('compressing  %s' % _id)
         acq_info = []
         for acq_no, acq_paths in dcm_dict.iteritems():
-            name_prefix = _id + ('_' + str(acq_no) if acq_no is not None else '')
+            name_prefix = _id + ('_' + acq_no if acq_no is not None else '')
             dir_name = name_prefix + '_' + scidcm.Dicom.filetype
             arcdir_path = os.path.join(path, dir_name)
             os.mkdir(arcdir_path)
@@ -122,7 +122,7 @@ class DicomNetReaper(reaper.Reaper):
             acq_info.append({
                     'path': arcdir_path+'.tgz',
                     'prefix': name_prefix,
-                    'log_info': '%s%s' % (_id, '.' + str(acq_no) if acq_no is not None else ''),
+                    'log_info': '%s%s' % (_id, '.' + acq_no if acq_no is not None else ''),
                     })
         return acq_info
 
@@ -134,7 +134,7 @@ class DicomNetReaper(reaper.Reaper):
             acq_datetime = scidcm.timestamp(dcm.get('AcquisitionDate'), dcm.get('AcquisitionTime'))
             study_datetime = scidcm.timestamp(dcm.get('StudyDate'), dcm.get('StudyTime'))
             self.timestamp = acq_datetime or study_datetime
-            self.acq_no = int(dcm.get('AcquisitionNumber', 1)) if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
+            self.acq_no = str(dcm.get('AcquisitionNumber')) if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
             self.patient_id = dcm.get('PatientID', '')
             self.firstname_hash = None
             self.lastname_hash = None

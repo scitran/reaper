@@ -33,10 +33,10 @@ def hrsize(size):
     for suffix in 'KMGTPEZY':
         size /= 1024.
         if size < 10.:
-            return '%.1f%s' % (size, suffix)
+            return '%.1f%sB' % (size, suffix)
         if size < 1000.:
-            return '%.0f%s' % (size, suffix)
-    return '%.0f%s' % (size, 'Y')
+            return '%.0f%sB' % (size, suffix)
+    return '%.0f%sB' % (size, 'Y')
 
 
 def datetime_encoder(o):
@@ -242,7 +242,7 @@ class Reaper(object):
             log.info('hashing      %s' % filename)
             hash_ = hashlib.md5()
             with open(filepath, 'rb') as fd:
-                for chunk in iter(lambda: fd.read(1048577 * hash_.block_size), ''):
+                for chunk in iter(lambda: fd.read(2**20), ''):
                     hash_.update(chunk)
             digest = hash_.hexdigest()
             for uri in self.upload_uris:
