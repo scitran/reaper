@@ -256,13 +256,16 @@ class Reaper(object):
 
     def http_upload(self, filename, filepath, digest, uri):
         headers = {
-                'User-Agent': 'reaper ' + self.id_,
-                'Content-MD5': digest,
-                'Content-Disposition': 'attachment; filename="%s_%s"' % (self.id_, filename),
-                }
+            'User-Agent': 'SciTran Drone reaper ' + self.id_,
+            'Content-MD5': digest,
+            'Content-Disposition': 'attachment; filename="%s_%s"' % (self.id_, filename),
+        }
+        uri, _, secret = uri.partition('?secret=')
+        if secret:
+            headers['X-SciTran-Auth'] = secret
         with open(filepath, 'rb') as fd:
             try:
-                r = requests.put(uri, data=fd, headers=headers)
+                r = requests.post(uri, data=fd, headers=headers)
             except requests.exceptions.ConnectionError as e:
                 log.error('error        %s: %s' % (filename, e))
                 return False
