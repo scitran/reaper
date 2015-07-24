@@ -78,6 +78,7 @@ class Reaper(object):
 
     def __init__(self, id_, options):
         self.id_ = id_
+        self.persitence_file = options.get('persistence_file')
         self.upload_uris = options.get('upload') or []
         self.peripheral_data = dict(options.get('peripheral') or [])
         self.sleeptime = options.get('sleeptime') or SLEEPTIME
@@ -89,7 +90,6 @@ class Reaper(object):
         log.setLevel(getattr(logging, (options.get('loglevel') or 'info').upper()))
 
         self.state = {}
-        self.persitence_file = os.path.join(os.path.dirname(__file__), '.%s.json' % self.id_)
         self.alive = True
 
         if not options.get('upload'):
@@ -285,6 +285,7 @@ def main(cls, positional_args, optional_args):
     import argparse
 
     arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument('persistence_file', help='path to persistence file')
     arg_parser.add_argument('-p', '--peripheral', nargs=2, action='append', help='path to peripheral data')
     arg_parser.add_argument('-s', '--sleeptime', type=int, help='time to sleep before checking for new data [60s]')
     arg_parser.add_argument('-g', '--graceperiod', type=int, help='time to keep vanished data alive [24h]')
