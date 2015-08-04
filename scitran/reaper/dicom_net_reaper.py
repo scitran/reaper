@@ -135,7 +135,7 @@ class DicomNetReaper(reaper.Reaper):
             acq_datetime = scidcm.timestamp(dcm.get('AcquisitionDate'), dcm.get('AcquisitionTime'))
             study_datetime = scidcm.timestamp(dcm.get('StudyDate'), dcm.get('StudyTime'))
             self.timestamp = acq_datetime or study_datetime
-            self.acq_no = str(dcm.get('AcquisitionNumber')) if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
+            self.acq_no = str(dcm.get('AcquisitionNumber', '')) or None if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
             self.patient_id = dcm.get('PatientID', '')
             self.firstname_hash = None
             self.lastname_hash = None
