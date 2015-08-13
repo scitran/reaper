@@ -88,6 +88,7 @@ class Reaper(object):
         self.sleeptime = options.get('sleeptime') or SLEEPTIME
         self.graceperiod = datetime.timedelta(seconds=(options.get('graceperiod') or GRACEPERIOD))
         self.reap_existing = options.get('existing') or False
+        self.insecure = options.get('insecure') or False
         self.tempdir = options.get('tempdir')
         self.timezone = options.get('timezone')
         self.oneshot = options.get('oneshot') or False
@@ -273,7 +274,8 @@ class Reaper(object):
             headers['X-SciTran-Auth'] = secret
         with open(filepath, 'rb') as fd:
             try:
-                r = requests.post(uri, data=fd, headers=headers)
+                r = requests.post(uri, data=fd, headers=headers,
+                                  verify=not self.insecure)
             except requests.exceptions.ConnectionError as e:
                 log.error('error        %s: %s' % (filename, e))
                 return False
@@ -306,6 +308,7 @@ def main(cls, positional_args, optional_args):
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='retrieve all existing data and exit')
     arg_parser.add_argument('-l', '--loglevel', help='log level [INFO]')
+    arg_parser.add_argument('-i', '--insecure', action='store_true', help='Do not verify server certificates')
 
     pg = arg_parser.add_argument_group(cls.__name__ + ' arguments')
     for args, kwargs in positional_args:
