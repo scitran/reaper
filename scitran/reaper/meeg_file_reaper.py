@@ -101,7 +101,7 @@ class MEEGFileReaper(reaper.Reaper):
         }
 
         log.info('compressing  %s' % _id)
-        reaper.create_archive(reap_path+'.tgz', reap_path,
+        reaper.create_archive(reap_path+'.zip', reap_path,
                               os.path.basename(reap_path), metadata,
                               compresslevel=6)
         shutil.rmtree(reap_path)

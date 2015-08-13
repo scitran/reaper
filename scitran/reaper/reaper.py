@@ -245,10 +245,9 @@ class Reaper(object):
                 success = self.get_upload_function(uri)(
                     filename, filepath, digest, uri)
                 upload_duration = (datetime.datetime.utcnow() - start).total_seconds()
-                if success:
-                    log.info('uploaded     %s [%s/s]' % (filename, hrsize(os.path.getsize(filepath)/upload_duration)))
-                else:
+                if not success:
                     return False
+                log.info('uploaded     %s [%s/s]' % (filename, hrsize(os.path.getsize(filepath)/upload_duration)))
         return True
 
     def get_upload_function(self, uri):
@@ -261,7 +260,7 @@ class Reaper(object):
             return self.file_copy
         else:
             log.error('unknown URI schem: %s' % uri)
-            return False
+            return lambda w, x, y, z: False
 
     def http_upload(self, filename, filepath, digest, uri):
         headers = {
