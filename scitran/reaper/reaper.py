@@ -80,6 +80,10 @@ class Reaper(object):
         self.id_ = id_
         self.persitence_file = options.get('persistence_file')
         self.upload_uris = options.get('upload') or []
+        for uri in self.upload_uris:
+            if not self.get_upload_function(uri):
+                raise RuntimeError('Bad URI "%s", reaper will not function'
+                                   % uri)
         self.peripheral_data = dict(options.get('peripheral') or [])
         self.sleeptime = options.get('sleeptime') or SLEEPTIME
         self.graceperiod = datetime.timedelta(seconds=(options.get('graceperiod') or GRACEPERIOD))
@@ -238,21 +242,26 @@ class Reaper(object):
             for uri in self.upload_uris:
                 log.info('uploading    %s [%s] to %s' % (filename, hrsize(os.path.getsize(filepath)), uri))
                 start = datetime.datetime.utcnow()
-                if uri.startswith('http://') or uri.startswith('https://'):
-                    success = self.http_upload(filename, filepath, digest, uri)
-                elif uri.startswith('s3://'):
-                    success = self.s3_upload(filename, filepath, digest, uri)
-                elif uri.startswith('file://'):
-                    success = self.file_copy(filename, filepath, digest, uri)
-                else:
-                    log.error('unknown URI schem: %s' % uri)
-                    return False
+                success = self.get_upload_function(uri)(
+                    filename, filepath, digest, uri)
                 upload_duration = (datetime.datetime.utcnow() - start).total_seconds()
                 if success:
                     log.info('uploaded     %s [%s/s]' % (filename, hrsize(os.path.getsize(filepath)/upload_duration)))
                 else:
                     return False
         return True
+
+    def get_upload_function(self, uri):
+        """Helper to get an appropriate upload function based on protocol"""
+        if uri.startswith('http://') or uri.startswith('https://'):
+            return self.http_upload
+        elif uri.startswith('s3://'):
+            return self.s3_upload
+        elif uri.startswith('file://'):
+            return self.file_copy
+        else:
+            log.error('unknown URI schem: %s' % uri)
+            return False
 
     def http_upload(self, filename, filepath, digest, uri):
         headers = {
