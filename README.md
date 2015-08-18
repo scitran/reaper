@@ -30,5 +30,5 @@ findscu --verbose -S -aet reaper -aec <scanner AET> -k QueryRetrieveLevel="SERIE
 ### Development
 
 ```
-./reaper/meeg_file_reaper.py -s 1 -u https://localhost:8443/api/reaper?secret=change-me <path>
+./reaper/meeg_file_reaper.py -s 1 -i -u https://localhost:8443/api/reaper?secret=change-me <path>
 ```

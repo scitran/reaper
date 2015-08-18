@@ -17,6 +17,7 @@ import datetime
 import warnings
 
 import reaper
+from scitran.data.meeg import MEEGReader
 
 
 class MEEGFileReaper(reaper.Reaper):
@@ -93,7 +94,7 @@ class MEEGFileReaper(reaper.Reaper):
             os.path.split(os.path.split(os.path.split(item['path'])[0])[0])[1]
 
         metadata = {
-            'filetype': 'FIF',
+            'filetype': MEEGReader.filetype,
             'timezone': self.timezone,
             'header': {
                 'project': project,
