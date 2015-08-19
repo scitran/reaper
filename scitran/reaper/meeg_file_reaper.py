@@ -30,8 +30,7 @@ class MEEGFileReaper(reaper.Reaper):
         elif not os.path.isdir(self.path):
             log.error('path argument must be a directory')
             sys.exit(1)
-        else:
-            log.info('Monitoring acquisition directory %s' % self.path)
+        log.info('Monitoring acquisition directory %s' % self.path)
         self.destructive = options.get('destructive')
         super(MEEGFileReaper, self).__init__(
             self.path.strip('/').replace('/', '_'), options)
