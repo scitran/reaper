@@ -88,18 +88,8 @@ class MEEGFileReaper(reaper.Reaper):
         t = (datetime.datetime.utcnow() - reap_start).total_seconds()
         log.info('reaped       %s (%d images) in %.1fs' % (_id, reap_cnt, t))
 
-        # project is the third-level dir name (project/subject/data/x_raw.fif)
-        project = \
-            os.path.split(os.path.split(os.path.split(item['path'])[0])[0])[1]
-
-        metadata = {
-            'filetype': MEEGReader.filetype,
-            'timezone': self.timezone,
-            'header': {
-                'project': project,
-            },
-        }
-
+        metadata = dict(filetype=MEEGReader.filetype, timezone=self.timezone,
+                        header={})
         log.info('compressing  %s' % _id)
         reaper.create_archive(reap_path + '.zip', reap_path,
                               os.path.basename(reap_path), metadata)
