@@ -17,7 +17,6 @@ import datetime
 import warnings
 
 import reaper
-from scitran.data.meeg import MEEGReader
 
 
 class MEEGFileReaper(reaper.Reaper):
@@ -88,7 +87,7 @@ class MEEGFileReaper(reaper.Reaper):
         t = (datetime.datetime.utcnow() - reap_start).total_seconds()
         log.info('reaped       %s (%d images) in %.1fs' % (_id, reap_cnt, t))
 
-        metadata = dict(filetype=MEEGReader.filetype, timezone=self.timezone,
+        metadata = dict(filetype=u'meeg', timezone=self.timezone,
                         header={})
         log.info('compressing  %s' % _id)
         reaper.create_archive(reap_path + '.zip', reap_path,
