@@ -80,10 +80,14 @@ class Reaper(object):
         self.id_ = id_
         self.persitence_file = options.get('persistence_file')
         self.upload_uris = options.get('upload') or []
+        for uri in self.upload_uris:
+            if not self.get_upload_function(uri):
+                raise ValueError('Bad URI "%s", reaper will not function' % uri)
         self.peripheral_data = dict(options.get('peripheral') or [])
         self.sleeptime = options.get('sleeptime') or SLEEPTIME
         self.graceperiod = datetime.timedelta(seconds=(options.get('graceperiod') or GRACEPERIOD))
         self.reap_existing = options.get('existing') or False
+        self.insecure = options.get('insecure') or False
         self.tempdir = options.get('tempdir')
         self.timezone = options.get('timezone')
         self.oneshot = options.get('oneshot') or False
@@ -238,21 +242,24 @@ class Reaper(object):
             for uri in self.upload_uris:
                 log.info('uploading    %s [%s] to %s' % (filename, hrsize(os.path.getsize(filepath)), uri))
                 start = datetime.datetime.utcnow()
-                if uri.startswith('http://') or uri.startswith('https://'):
-                    success = self.http_upload(filename, filepath, digest, uri)
-                elif uri.startswith('s3://'):
-                    success = self.s3_upload(filename, filepath, digest, uri)
-                elif uri.startswith('file://'):
-                    success = self.file_copy(filename, filepath, digest, uri)
-                else:
-                    log.error('unknown URI schem: %s' % uri)
-                    return False
+                success = self.get_upload_function(uri)(
+                    filename, filepath, digest, uri)
                 upload_duration = (datetime.datetime.utcnow() - start).total_seconds()
-                if success:
-                    log.info('uploaded     %s [%s/s]' % (filename, hrsize(os.path.getsize(filepath)/upload_duration)))
-                else:
+                if not success:
                     return False
+                log.info('uploaded     %s [%s/s]' % (filename, hrsize(os.path.getsize(filepath)/upload_duration)))
         return True
+
+    def get_upload_function(self, uri):
+        """Helper to get an appropriate upload function based on protocol"""
+        if uri.startswith('http://') or uri.startswith('https://'):
+            return self.http_upload
+        elif uri.startswith('s3://'):
+            return self.s3_upload
+        elif uri.startswith('file://'):
+            return self.file_copy
+        else:
+            return False
 
     def http_upload(self, filename, filepath, digest, uri):
         headers = {
@@ -265,7 +272,8 @@ class Reaper(object):
             headers['X-SciTran-Auth'] = secret
         with open(filepath, 'rb') as fd:
             try:
-                r = requests.post(uri, data=fd, headers=headers)
+                r = requests.post(uri, data=fd, headers=headers,
+                                  verify=not self.insecure)
             except requests.exceptions.ConnectionError as e:
                 log.error('error        %s: %s' % (filename, e))
                 return False
@@ -298,6 +306,7 @@ def main(cls, positional_args, optional_args):
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='retrieve all existing data and exit')
     arg_parser.add_argument('-l', '--loglevel', help='log level [INFO]')
+    arg_parser.add_argument('-i', '--insecure', action='store_true', help='Do not verify server certificates')
 
     pg = arg_parser.add_argument_group(cls.__name__ + ' arguments')
     for args, kwargs in positional_args:
