@@ -82,8 +82,7 @@ class Reaper(object):
         self.upload_uris = options.get('upload') or []
         for uri in self.upload_uris:
             if not self.get_upload_function(uri):
-                raise RuntimeError('Bad URI "%s", reaper will not function'
-                                   % uri)
+                raise ValueError('Bad URI "%s", reaper will not function' % uri)
         self.peripheral_data = dict(options.get('peripheral') or [])
         self.sleeptime = options.get('sleeptime') or SLEEPTIME
         self.graceperiod = datetime.timedelta(seconds=(options.get('graceperiod') or GRACEPERIOD))
@@ -260,8 +259,7 @@ class Reaper(object):
         elif uri.startswith('file://'):
             return self.file_copy
         else:
-            log.error('unknown URI schem: %s' % uri)
-            return lambda w, x, y, z: False
+            return False
 
     def http_upload(self, filename, filepath, digest, uri):
         headers = {
