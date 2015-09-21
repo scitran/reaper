@@ -1,11 +1,25 @@
 ### Installation
 
 ```
-virtualenv reaperenv
-source reaperenv/bin/activate
-pip install -U pip setuptools
+cd /tmp
+curl https://www.python.org/ftp/python/2.7.10/Python-2.7.10.tgz | tar xz
+cd Python-2.7.10/
+./configure --with-ensurepip
+make
+sudo make install
+sudo /usr/local/bin/pip install -U pip setuptools wheel ipython virtualenv virtualenvwrapper
 
-pip install -r requirements.txt .
+source /usr/local/bin/virtualenvwrapper.sh
+mkvirtualenv reaper
+
+cd /tmp
+curl ftp://dicom.offis.de/pub/dicom/offis/software/dcmtk/snapshot/dcmtk-3.6.1_20150924.tar.gz | tar xz
+cd dcmtk-*
+./configure --prefix=$VIRTUAL_ENV
+make all
+make install
+
+python setup.py install
 ```
 
 ### Reaping

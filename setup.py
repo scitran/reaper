@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 import os
 
-version = '0.1'
+version = '0.2'
 
 tests_require = []
 
@@ -22,11 +22,8 @@ setup(
         'pytz',
         'tzlocal',
         'requests',
+        'requests_toolbelt',
         'pydicom',
-        'numpy',
-        'nibabel',
-        'dcmstack',
-        'scitran.data',
     ],
     entry_points={
         'console_scripts': [

@@ -1,8 +1,5 @@
 pytz
 tzlocal
+pydicom
 requests
-numpy
-nibabel
--e git+https://github.com/scitran/pydicom.git@0.9.9_value_vr_mismatch#egg=pydicom
--e git+https://github.com/moloney/dcmstack.git@6d49fe01235c08ae63c76fa2f3943b49c9b9832d#egg=dcmstack
--e git+https://github.com/scitran/data.git@abf5dd1f0d27f74df7cc7d6790faeabd51385abc#egg=scitran.data
+requests_toolbelt

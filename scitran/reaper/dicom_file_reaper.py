@@ -17,7 +17,8 @@ import shutil
 import hashlib
 import datetime
 
-import reaper
+from . import util
+from . import reaper
 
 
 class DicomFileReaper(reaper.Reaper):
@@ -88,7 +89,7 @@ class DicomFileReaper(reaper.Reaper):
             os.remove(metadata_path)
         metadata['filetype'] = 'dicom'
         log.info('compressing  %s' % _id)
-        reaper.create_archive(reap_path+'.zip', reap_path, os.path.basename(reap_path), metadata)
+        util.create_archive(reap_path+'.zip', reap_path, os.path.basename(reap_path), metadata)
         shutil.rmtree(reap_path)
         return True
 

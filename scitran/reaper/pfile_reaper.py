@@ -16,8 +16,9 @@ import glob
 import shutil
 import datetime
 
-import reaper
-import gephysio
+from . import util
+from . import reaper
+from . import gephysio
 
 import scitran.data.medimg.pfile as scipfile
 logging.getLogger('scitran.data').setLevel(logging.INFO)
@@ -98,7 +99,7 @@ class PFileReaper(reaper.Reaper):
                 auxfile_str = ' + %d aux files' % len(auxfiles) if auxfiles else ''
                 log.info('reaping.zip  %s [%s%s]' % (_id, pfile_size, auxfile_str))
                 try:
-                    reaper.create_archive(reap_path+'.zip', reap_path, os.path.basename(reap_path), metadata)
+                    util.create_archive(reap_path+'.zip', reap_path, os.path.basename(reap_path), metadata)
                     shutil.rmtree(reap_path)
                 except (IOError):
                     success = False

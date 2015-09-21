@@ -15,12 +15,12 @@ import pytz
 import time
 import hashlib
 import tzlocal
-import zipfile
-import calendar
 import datetime
 import requests
+import requests_toolbelt
 
-import tempdir as tempfile
+from . import util
+from . import tempdir as tempfile
 
 SLEEPTIME = 60
 GRACEPERIOD = 86400
@@ -28,38 +28,62 @@ OFFDUTY_SLEEPTIME = 300
 DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
-def hrsize(size):
-    if size < 1000:
-        return '%d%s' % (size, 'B')
-    for suffix in 'KMGTPEZY':
-        size /= 1024.
-        if size < 10.:
-            return '%.1f%sB' % (size, suffix)
-        if size < 1000.:
-            return '%.0f%sB' % (size, suffix)
-    return '%.0f%sB' % (size, 'Y')
+METADATA = [
+    # required
+    ('group', 'name'),
+    ('project', 'label'),
+    ('session', 'uid'),
+    ('acquisition', 'uid'),
+    # desired (for enhanced UI/UX)
+    ('session', 'timestamp'),
+    ('session', 'timezone'),        # auto-set
+    ('subject', 'code'),
+    ('acquisition', 'label'),
+    ('acquisition', 'timestamp'),
+    ('acquisition', 'timezone'),    # auto-set
+    ('file', 'type'),
+    # optional
+    ('session', 'label'),
+    ('session', 'operator'),
+    ('subject', 'firstname'),
+    ('subject', 'lastname'),
+    ('subject', 'firstname_hash'),  # unrecoverable, if anonymizing
+    ('subject', 'lastname_hash'),   # unrecoverable, if anonymizing
+    ('subject', 'sex'),
+    ('subject', 'age'),
+    ('acquisition', 'instrument'),
+    ('acquisition', 'measurement'),
+    ('file', 'instrument'),
+    ('file', 'measurements'),
+]
 
 
-def datetime_encoder(o):
-    if isinstance(o, datetime.datetime):
-        if o.utcoffset() is not None:
-            o = o - o.utcoffset()
-        return {"$date": int(calendar.timegm(o.timetuple()) * 1000 + o.microsecond / 1000)}
-    raise TypeError(repr(o) + " is not JSON serializable")
+# monkey patching httplib to increase performance due to hard-coded block size
+import httplib
+from array import array
 
+def fast_http_send(self, data):
+    """Send `data' to the server."""
+    if self.sock is None:
+        if self.auto_open:
+            self.connect()
+        else:
+            raise NotConnected()
 
-def datetime_decoder(dct):
-    if "$date" in dct:
-        return datetime.datetime.utcfromtimestamp(float(dct["$date"]) / 1000.0)
-    return dct
+    if self.debuglevel > 0:
+        print "send:", repr(data)
+    blocksize = 2**20 # was 8192 originally
+    if hasattr(data,'read') and not isinstance(data, array):
+        if self.debuglevel > 0: print "sendIng a read()able"
+        datablock = data.read(blocksize)
+        while datablock:
+            self.sock.sendall(datablock)
+            datablock = data.read(blocksize)
+    else:
+        self.sock.sendall(data)
 
-
-def create_archive(path, content, arcname, metadata):
-    with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
-        zf.comment = json.dumps(metadata, default=datetime_encoder)
-        zf.write(content, arcname)
-        for fn in os.listdir(content):
-            zf.write(os.path.join(content, fn), os.path.join(arcname, fn))
+httplib.HTTPConnection.send = fast_http_send
+httplib.HTTPSConnection.send = fast_http_send
 
 
 class ReaperItem(dict):
@@ -105,10 +129,10 @@ class Reaper(object):
                 sys.exit(1)
 
         if self.timezone is None:
-            self.timezone = tzlocal.get_localzone().zone
+            self.timezone = tzlocal.get_localzone()
         else:
             try:
-                pytz.timezone(self.timezone)
+                self.timezone = pytz.timezone(self.timezone)
             except pytz.UnknownTimeZoneError:
                 log.error('invalid timezone')
                 sys.exit(1)
@@ -138,10 +162,10 @@ class Reaper(object):
                 unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
                 log.info('loaded       %d items from persistence file, %d not reaped' % (len(self.state), unreaped_cnt))
             else:
-                query_start = datetime.datetime.now()
+                query_start = datetime.datetime.utcnow()
                 self.state = self.instrument_query()
                 if self.state is not None:
-                    log.debug('query time   %.1fs' % (datetime.datetime.now() - query_start).total_seconds())
+                    log.debug('query time   %.1fs' % (datetime.datetime.utcnow() - query_start).total_seconds())
                     for item in self.state.itervalues():
                         item['reaped'] = True
                     self.persistent_state = self.state
@@ -190,10 +214,10 @@ class Reaper(object):
                     _id, item = _id_item
                     log.info('reap queue   item %d of %d' % (i+1, reap_queue_len))
                     with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir:
-                        item['reaped'] = self.reap(_id, item, tempdir) # returns True, False, None
+                        item['reaped'], metadata_map = self.reap(_id, item, tempdir) # returns True, False, None
                         if item['reaped']:
                             item['failures'] = 0
-                            if self.upload(tempdir):
+                            if self.upload(metadata_map, tempdir):
                                 if self.destructive:
                                     self.destroy(item)
                             else:
@@ -219,6 +243,18 @@ class Reaper(object):
                 log.debug('sleeping     %.1fs' % sleeptime)
                 time.sleep(sleeptime)
 
+    def metadata(self, obj):
+        metadata = {
+            'session': {'timezone': self.timezone},
+            'acquisition': {'timezone': self.timezone},
+        }
+        for md_group, md_field in METADATA:
+            value = getattr(obj, md_group + '_' + md_field, None)
+            if value is not None:
+                metadata.setdefault(md_group, {})
+                metadata[md_group][md_field] = value
+        return metadata
+
     @property
     def in_working_hours(self):
         if not self.working_hours:
@@ -235,27 +271,31 @@ class Reaper(object):
     def persistent_state(self):
         try:
             with open(self.persitence_file, 'r') as persitence_file:
-                state = json.load(persitence_file, object_hook=datetime_decoder)
+                state = json.load(persitence_file, object_hook=util.datetime_decoder)
             # TODO: add some consistency checks here and possibly drop state
         except:
+            log.warning('persistence file not found')
             state = {}
         return state
 
     @persistent_state.setter
     def persistent_state(self, state):
         with open(self.persitence_file, 'w') as persitence_file:
-            json.dump(state, persitence_file, indent=4, separators=(',', ': '), default=datetime_encoder)
+            json.dump(state, persitence_file, indent=4, separators=(',', ': '), default=util.datetime_encoder)
             persitence_file.write('\n')
 
     def reap_peripheral_data(self, reap_path, reap_data, reap_name, log_info):
         for pdn, pdp in self.peripheral_data.iteritems():
             if pdn in self.peripheral_data_reapers:
+                # FIXME
+                # import self.peripheral_data_reapers[pdn]
+                # run self.peripheral_data_reapers[pdn].reap(...)
                 self.peripheral_data_reapers[pdn](pdn, pdp, reap_path, reap_data, reap_name+'_'+pdn, log, log_info, self.tempdir)
             else:
                 log.warning('periph data %s %s does not exist' % (log_info, pdn))
 
-    def upload(self, path):
-        for filename in os.listdir(path):
+    def upload(self, metadata_map, path):
+        for filename, metadata in metadata_map.iteritems():
             filepath = os.path.join(path, filename)
             log.info('hashing      %s' % filename)
             hash_ = hashlib.md5()
@@ -264,13 +304,13 @@ class Reaper(object):
                     hash_.update(chunk)
             digest = hash_.hexdigest()
             for uri in self.upload_uris:
-                log.info('uploading    %s [%s] to %s' % (filename, hrsize(os.path.getsize(filepath)), uri))
+                log.info('uploading    %s [%s] to %s' % (filename, util.hrsize(os.path.getsize(filepath)), uri))
                 start = datetime.datetime.utcnow()
-                success = self.upload_method(uri)(filename, filepath, digest, uri)
+                success = self.upload_method(uri)(filename, filepath, metadata, digest, uri)
                 upload_duration = (datetime.datetime.utcnow() - start).total_seconds()
                 if not success:
                     return False
-                log.info('uploaded     %s [%s/s]' % (filename, hrsize(os.path.getsize(filepath)/upload_duration)))
+                log.info('uploaded     %s [%s/s]' % (filename, util.hrsize(os.path.getsize(filepath)/upload_duration)))
         return True
 
     def upload_method(self, uri):
@@ -284,10 +324,10 @@ class Reaper(object):
         else:
             raise ValueError('bad upload URI "%s"' % uri)
 
-    def http_upload(self, filename, filepath, digest, uri):
+    def http_upload(self, filename, filepath, metadata, digest, uri):
         headers = {
             'User-Agent': 'SciTran Drone reaper ' + self.id_,
-            'Content-MD5': digest,
+            'Content-MD5': digest, # FIXME do we still want this?
             'Content-Disposition': 'attachment; filename="%s_%s"' % (self.id_, filename),
         }
         uri, _, secret = uri.partition('?secret=')
@@ -295,21 +335,24 @@ class Reaper(object):
             headers['X-SciTran-Auth'] = secret
         with open(filepath, 'rb') as fd:
             try:
-                r = requests.post(uri, data=fd, headers=headers, verify=not self.insecure)
+                metadata_json = json.dumps(metadata, default=util.datetime_encoder)
+                mpe = requests_toolbelt.multipart.encoder.MultipartEncoder(fields={'metadata': metadata_json, 'file': (filename, fd)}) # FIXME do we need to set the content type of each file?
+                headers['Content-Type'] = mpe.content_type
+                r = requests.post(uri, data=mpe, headers=headers, verify=not self.insecure)
             except requests.exceptions.ConnectionError as e:
                 log.error('error        %s: %s' % (filename, e))
                 return False
             else:
-                if r.status_code in [200, 202]:
+                if r.ok:
                     return True
                 else:
                     log.warning('failure      %s: %s %s' % (filename, r.status_code, r.reason))
                     return False
 
-    def s3_upload(self, filename, filepath, digest, uri):
+    def s3_upload(self, filename, filepath, metadata, digest, uri):
         pass
 
-    def file_copy(self, filename, filepath, digest, uri):
+    def file_copy(self, filename, filepath, metadata, digest, uri):
         pass
 
 
@@ -338,6 +381,9 @@ def main(cls, positional_args, optional_args):
     for args, kwargs in optional_args:
         og.add_argument(*args, **kwargs)
     args = arg_parser.parse_args()
+
+    if args.insecure:
+        requests.packages.urllib3.disable_warnings()
 
     if args.workinghours:
         args.workinghours = map(datetime.time, args.workinghours)

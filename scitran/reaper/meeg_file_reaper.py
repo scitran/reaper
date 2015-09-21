@@ -16,7 +16,8 @@ import shutil
 import datetime
 import warnings
 
-import reaper
+from . import util
+from . import reaper
 
 
 class MEEGFileReaper(reaper.Reaper):
@@ -90,8 +91,7 @@ class MEEGFileReaper(reaper.Reaper):
         metadata = dict(filetype=u'meeg', timezone=self.timezone,
                         header={})
         log.info('compressing  %s' % _id)
-        reaper.create_archive(reap_path + '.zip', reap_path,
-                              os.path.basename(reap_path), metadata)
+        util.create_archive(reap_path + '.zip', reap_path, os.path.basename(reap_path), metadata)
         shutil.rmtree(reap_path)
         return True
 

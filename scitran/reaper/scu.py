@@ -18,12 +18,9 @@ import subprocess
 
 log = logging.getLogger('reaper.dicom.scu')
 
-RESPONSE_RE = re.compile("""
-W: # Dicom-Data-Set
-W: # Used TransferSyntax: (?P<transfer_syntax>.+)
-(?P<dicom_cvs>(W: \(.+\) .+\n){2,})""")
-DICOM_CV_RE = re.compile(""".*\((?P<idx_0>[0-9a-f]{4}),(?P<idx_1>[0-9a-f]{4})\) (?P<type>\w{2}) (?P<value>.+)#[ ]*(?P<length>\d+),[ ]*(?P<n_elems>\d+) (?P<label>\w+)\n""")
-MOVE_OUTPUT_RE = re.compile('.*Completed Suboperations +: ([a-zA-Z0-9]+)', re.DOTALL)
+RESPONSE_RE = re.compile(r'I: Find Response.*\n.*\nI: # Dicom-Data-Set\nI: # Used TransferSyntax: (?P<txx>.+)\n(?P<dicom_cvs>(I: \(.+\) .+\n){2,})')
+DICOM_CV_RE = re.compile(r'.*\((?P<idx_0>[0-9a-f]{4}),(?P<idx_1>[0-9a-f]{4})\) (?P<type>\w{2}) (?P<value>.+)#[ ]*(?P<length>\d+),[ ]*(?P<n_elems>\d+) (?P<label>\w+)\n')
+MOVE_OUTPUT_RE = re.compile(r'.*I: Received Move Response ([a-zA-Z0-9]+) \(Pending\)', re.DOTALL)
 
 
 class SCU(object):
@@ -50,9 +47,9 @@ class SCU(object):
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
         except Exception as ex:
-            log.debug(ex)
+            log.debug(type(ex).__name__, ex)
             output and log.debug(output)
-        if output and re.search('DIMSE Status .* Success', output):
+        if output and re.search('I: Received Final Find Response \(Success\)', output):
             return [Response(query.kwargs.keys(), match_obj.groupdict()) for match_obj in RESPONSE_RE.finditer(output)]
         else:
             log.warning(cmd)
@@ -67,7 +64,7 @@ class SCU(object):
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
         except Exception as ex:
-            log.debug(ex)
+            log.debug(type(ex).__name__, ex)
             output and log.debug(output)
         try:
             img_cnt = int(MOVE_OUTPUT_RE.match(output).group(1))
@@ -138,13 +135,13 @@ class Response(dict):
 
     def __init__(self, requested_cv_names, response_dict):
         dict.__init__(self)
-        self.transfer_syntax = response_dict['transfer_syntax']
+        self.transfer_syntax = response_dict['txx']
         self.dicom_cv_list = [DicomCV(match_obj.groupdict()) for match_obj in DICOM_CV_RE.finditer(response_dict['dicom_cvs'])]
         for cv_name in requested_cv_names:
             self[cv_name] = None
         for cv in self.dicom_cv_list:
             if cv.value != '(no value available)':
-                self[cv.label] = cv.value
+                self[cv.label] = cv.value.strip('\x00')
 
     def __dir__(self):
         """Return list of dictionary elements for tab completion in utilities like iPython."""

@@ -6,8 +6,9 @@ import time
 import shutil
 import datetime
 
-import reaper
-import tempdir as tempfile
+from . import util
+from . import reaper
+from . import tempdir as tempfile
 
 import scitran.data.medimg.gephysio
 
@@ -56,6 +57,6 @@ def reap(name, data_path, reap_path, reap_data, reap_name, log, log_info, tempdi
             os.mkdir(physio_reap_path)
             for pts, pfn in physio_tuples:
                 shutil.copy2(os.path.join(data_path, pfn), physio_reap_path)
-            reaper.create_archive(os.path.join(reap_path, reap_name+'.zip'), physio_reap_path, reap_name, metadata)
+            util.create_archive(os.path.join(reap_path, reap_name+'.zip'), physio_reap_path, reap_name, metadata)
     else:
         log.info('periph data  %s %s not found' % (log_info, name))
