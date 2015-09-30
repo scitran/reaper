@@ -24,6 +24,7 @@ import tempdir as tempfile
 
 SLEEPTIME = 60
 GRACEPERIOD = 86400
+OFFDUTY_SLEEPTIME = 300
 DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
@@ -88,6 +89,7 @@ class Reaper(object):
         self.tempdir = options.get('tempdir')
         self.timezone = options.get('timezone')
         self.oneshot = options.get('oneshot') or False
+        self.working_hours = options.get('workinghours')
         log.setLevel(getattr(logging, (options.get('loglevel') or 'info').upper()))
 
         self.state = {}
@@ -149,6 +151,10 @@ class Reaper(object):
                 log.info('sleeping     %.1fs' % self.sleeptime)
                 time.sleep(self.sleeptime)
         while self.alive:
+            if not self.in_working_hours:
+                log.info('sleeping     %.0fs (off-duty)' % OFFDUTY_SLEEPTIME)
+                time.sleep(OFFDUTY_SLEEPTIME)
+                continue
             query_start = datetime.datetime.utcnow()
             new_state = self.instrument_query()
             reap_start = datetime.datetime.utcnow()
@@ -178,6 +184,9 @@ class Reaper(object):
                 self.persistent_state = self.state = new_state
                 reap_queue_len = len(reap_queue)
                 for i, _id_item in enumerate(reap_queue):
+                    if not self.in_working_hours:
+                        log.info('aborting     reap-run (off-duty)')
+                        break
                     _id, item = _id_item
                     log.info('reap queue   item %d of %d' % (i+1, reap_queue_len))
                     with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir:
@@ -209,6 +218,18 @@ class Reaper(object):
             if sleeptime > 0:
                 log.debug('sleeping     %.1fs' % sleeptime)
                 time.sleep(sleeptime)
+
+    @property
+    def in_working_hours(self):
+        if not self.working_hours:
+            return True
+        local_now = datetime.datetime.now().time()
+        off_duty = False
+        if self.working_hours[0] < self.working_hours[1] and not self.working_hours[0] < local_now < self.working_hours[1]:
+            return False
+        if self.working_hours[0] > self.working_hours[1] and self.working_hours[1] < local_now < self.working_hours[0]:
+            return False
+        return True
 
     @property
     def persistent_state(self):
@@ -308,6 +329,7 @@ def main(cls, positional_args, optional_args):
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='retrieve all existing data and exit')
     arg_parser.add_argument('-l', '--loglevel', help='log level [INFO]')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
+    arg_parser.add_argument('-k', '--workinghours', nargs=2, type=int, help='working hours in 24hr time [0 24]')
 
     pg = arg_parser.add_argument_group(cls.__name__ + ' arguments')
     for args, kwargs in positional_args:
@@ -316,6 +338,9 @@ def main(cls, positional_args, optional_args):
     for args, kwargs in optional_args:
         og.add_argument(*args, **kwargs)
     args = arg_parser.parse_args()
+
+    if args.workinghours:
+        args.workinghours = map(datetime.time, args.workinghours)
 
     reaper = cls(vars(args))
 
