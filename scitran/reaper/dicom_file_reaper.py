@@ -88,7 +88,7 @@ class DicomFileReaper(reaper.Reaper):
             os.remove(metadata_path)
         metadata['filetype'] = 'dicom'
         log.info('compressing  %s' % _id)
-        reaper.create_archive(reap_path+'.zip', reap_path, os.path.basename(reap_path), metadata, compresslevel=6)
+        reaper.create_archive(reap_path+'.zip', reap_path, os.path.basename(reap_path), metadata)
         shutil.rmtree(reap_path)
         return True
 
@@ -100,7 +100,7 @@ def main():
         (('path',), dict(help='path to DICOM files')),
     ]
     optional_args = [
-        arg_parser.add_argument('-d', '--destructive', action='store_true', help='delete data after reaping')
+        (('-d', '--destructive'), dict(action='store_true', help='delete data after reaping'))
     ]
     reaper.main(DicomFileReaper, positional_args, optional_args)
 
