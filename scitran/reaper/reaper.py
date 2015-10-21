@@ -13,7 +13,6 @@ import sys
 import json
 import pytz
 import time
-import hashlib
 import tzlocal
 import datetime
 import requests
@@ -298,15 +297,10 @@ class Reaper(object):
         for filename, metadata in metadata_map.iteritems():
             filepath = os.path.join(path, filename)
             log.info('hashing      %s' % filename)
-            hash_ = hashlib.md5()
-            with open(filepath, 'rb') as fd:
-                for chunk in iter(lambda: fd.read(2**20), ''):
-                    hash_.update(chunk)
-            digest = hash_.hexdigest()
             for uri in self.upload_uris:
                 log.info('uploading    %s [%s] to %s' % (filename, util.hrsize(os.path.getsize(filepath)), uri))
                 start = datetime.datetime.utcnow()
-                success = self.upload_method(uri)(filename, filepath, metadata, digest, uri)
+                success = self.upload_method(uri)(filename, filepath, metadata, uri)
                 upload_duration = (datetime.datetime.utcnow() - start).total_seconds()
                 if not success:
                     return False
@@ -324,11 +318,9 @@ class Reaper(object):
         else:
             raise ValueError('bad upload URI "%s"' % uri)
 
-    def http_upload(self, filename, filepath, metadata, digest, uri):
+    def http_upload(self, filename, filepath, metadata, uri):
         headers = {
             'User-Agent': 'SciTran Drone reaper ' + self.id_,
-            'Content-MD5': digest, # FIXME do we still want this?
-            'Content-Disposition': 'attachment; filename="%s_%s"' % (self.id_, filename),
         }
         uri, _, secret = uri.partition('?secret=')
         if secret:
