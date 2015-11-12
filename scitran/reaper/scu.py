@@ -47,7 +47,7 @@ class SCU(object):
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
         except Exception as ex:
-            log.debug(type(ex).__name__, ex)
+            log.debug('%s: %s' % (type(ex).__name__, ex))
             output and log.debug(output)
         if output and re.search('I: Received Final Find Response \(Success\)', output):
             return [Response(query.kwargs.keys(), match_obj.groupdict()) for match_obj in RESPONSE_RE.finditer(output)]
@@ -64,7 +64,7 @@ class SCU(object):
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
         except Exception as ex:
-            log.debug(type(ex).__name__, ex)
+            log.debug('%s: %s' % (type(ex).__name__, ex))
             output and log.debug(output)
         try:
             img_cnt = int(MOVE_OUTPUT_RE.match(output).group(1))
