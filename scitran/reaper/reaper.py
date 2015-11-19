@@ -29,7 +29,7 @@ DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 METADATA = [
     # required
-    ('group', 'name'),
+    ('group', '_id'),
     ('project', 'label'),
     ('session', 'uid'),
     ('acquisition', 'uid'),
@@ -327,7 +327,7 @@ class Reaper(object):
             headers['X-SciTran-Auth'] = secret
         with open(filepath, 'rb') as fd:
             try:
-                metadata_json = json.dumps(metadata, default=util.datetime_encoder)
+                metadata_json = json.dumps(metadata, default=util.metadata_encoder)
                 mpe = requests_toolbelt.multipart.encoder.MultipartEncoder(fields={'metadata': metadata_json, 'file': (filename, fd)}) # FIXME do we need to set the content type of each file?
                 headers['Content-Type'] = mpe.content_type
                 r = requests.post(uri, data=mpe, headers=headers, verify=not self.insecure)

@@ -141,7 +141,7 @@ class DicomNetReaper(reaper.Reaper):
                 self.subject_firstname, self.subject_lastname = self.parse_patient_name(dcm.get('PatientName', ''))
                 self.subject_firstname_hash = hashlib.sha256(self.subject_firstname).hexdigest() if self.subject_firstname else None
                 self.subject_lastname_hash = hashlib.sha256(self.subject_lastname).hexdigest() if self.subject_lastname else None
-                self.subject_code, self.group_name, self.project_label = self.parse_patient_id(self.patient_id, dcm.get('StudyID', ''))
+                self.subject_code, self.group__id, self.project_label = self.parse_patient_id(self.patient_id, dcm.get('StudyID', ''))
                 self.acquisition_uid = series_uid + ('_' + str(self.acq_no) if self.acq_no is not None else '')
                 self.acquisition_timestamp = acq_datetime or study_datetime
                 self.acquisition_label = dcm.get('SeriesDescription')
