@@ -11,6 +11,7 @@ Specific Query objects are constructed (e.g., SeriesQuery, if you intend to sear
 the find() or move() methods of an SCU object.
 """
 
+import os
 import re
 import shlex
 import logging
@@ -20,7 +21,6 @@ log = logging.getLogger('reaper.dicom.scu')
 
 RESPONSE_RE = re.compile(r'I: Find Response.*\n.*\nI: # Dicom-Data-Set\nI: # Used TransferSyntax: (?P<txx>.+)\n(?P<dicom_cvs>(I: \(.+\) .+\n){2,})')
 DICOM_CV_RE = re.compile(r'.*\((?P<idx_0>[0-9a-f]{4}),(?P<idx_1>[0-9a-f]{4})\) (?P<type>\w{2}) (?P<value>.+)#[ ]*(?P<length>\d+),[ ]*(?P<n_elems>\d+) (?P<label>\w+)\n')
-MOVE_OUTPUT_RE = re.compile(r'.*I: Received Move Response ([a-zA-Z0-9]+) \(Pending\)', re.DOTALL)
 
 
 class SCU(object):
@@ -66,11 +66,13 @@ class SCU(object):
         except Exception as ex:
             log.debug('%s: %s' % (type(ex).__name__, ex))
             output and log.debug(output)
-        try:
-            img_cnt = int(MOVE_OUTPUT_RE.match(output).group(1))
-        except (ValueError, AttributeError):
+        if output:
+            success = re.search('I: Received Final Move Response \(Success\)', output)
+            img_cnt = len(os.listdir(dest_path))
+        else:
+            success = False
             img_cnt = 0
-        return img_cnt
+        return success, img_cnt
 
     def query_string(self, query):
         """Convert a query into a string to be appended to a findscu or movescu call."""
