@@ -102,7 +102,7 @@ class Reaper(object):
 
     def __init__(self, id_, options):
         self.id_ = id_
-        self.persitence_file = options.get('persistence_file')
+        self.persistence_file = options.get('persistence_file')
         self.upload_uris = options.get('upload') or []
         self.peripheral_data = dict(options.get('peripheral') or [])
         self.sleeptime = options.get('sleeptime') or SLEEPTIME
@@ -269,8 +269,8 @@ class Reaper(object):
     @property
     def persistent_state(self):
         try:
-            with open(self.persitence_file, 'r') as persitence_file:
-                state = json.load(persitence_file, object_hook=util.datetime_decoder)
+            with open(self.persistence_file, 'r') as persistence_file:
+                state = json.load(persistence_file, object_hook=util.datetime_decoder)
             # TODO: add some consistency checks here and possibly drop state
         except:
             log.warning('persistence file not found')
@@ -279,9 +279,9 @@ class Reaper(object):
 
     @persistent_state.setter
     def persistent_state(self, state):
-        with open(self.persitence_file, 'w') as persitence_file:
-            json.dump(state, persitence_file, indent=4, separators=(',', ': '), default=util.datetime_encoder)
-            persitence_file.write('\n')
+        with open(self.persistence_file, 'w') as persistence_file:
+            json.dump(state, persistence_file, indent=4, separators=(',', ': '), default=util.datetime_encoder)
+            persistence_file.write('\n')
 
     def reap_peripheral_data(self, reap_path, reap_data, reap_name, log_info):
         for pdn, pdp in self.peripheral_data.iteritems():
@@ -373,6 +373,9 @@ def main(cls, positional_args, optional_args):
     for args, kwargs in optional_args:
         og.add_argument(*args, **kwargs)
     args = arg_parser.parse_args()
+
+    if not os.path.isdir(os.path.dirname(args.persistence_file)):
+        os.makedirs(os.path.dirname(args.persistence_file))
 
     if args.insecure:
         requests.packages.urllib3.disable_warnings()
