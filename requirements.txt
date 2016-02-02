@@ -1,5 +1,4 @@
 pytz
 tzlocal
-pydicom
 requests
 requests_toolbelt
