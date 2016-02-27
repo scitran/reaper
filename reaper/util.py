@@ -3,6 +3,8 @@ import json
 import zipfile
 import calendar
 import datetime
+import requests
+import requests_toolbelt
 
 
 def hrsize(size):
@@ -41,15 +43,24 @@ def datetime_decoder(dct):
     return dct
 
 
-def create_archive(content, arcname, metadata):
-    path = content + '.zip'
+def create_archive(content, arcname, metadata, outdir=None, filenames=None):
+    path = (os.path.join(outdir, arcname) if outdir else os.path.join(os.path.dirname(content), arcname)) + '.zip'
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
         zf.comment = json.dumps(metadata, default=metadata_encoder)
-        zf.write(content, arcname)
-        for fn in os.listdir(content):
+        for fn in filenames or os.listdir(content):
             zf.write(os.path.join(content, fn), os.path.join(arcname, fn))
     return path
 
 
 def localize_timestamp(timestamp, timezone):
     return timezone.localize(timestamp)
+
+
+def upload_file(rs, url, filepath, metadata):
+    filename = os.path.basename(filepath)
+    metadata_json = json.dumps(metadata, default=metadata_encoder)
+    with open(filepath, 'rb') as fd:
+        mpe = requests_toolbelt.multipart.encoder.MultipartEncoder(fields={'metadata': metadata_json, 'file': (filename, fd)})
+        r = rs.post(url, data=mpe, headers={'Content-Type': mpe.content_type})
+        if not r.ok:
+            raise Exception(str(r.status_code) + ' ' + r.reason)
