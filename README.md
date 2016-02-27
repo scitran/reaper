@@ -1,34 +1,40 @@
 ### Installation
 
 ```
+(
+PYTHON_VERSION=2.7.11
 cd /tmp
-curl https://www.python.org/ftp/python/2.7.10/Python-2.7.10.tgz | tar xz
-cd Python-2.7.10/
+curl https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tgz | tar xz
+cd Python-$PYTHON_VERSION
 ./configure --with-ensurepip
 make
 sudo make install
-sudo /usr/local/bin/pip install -U pip setuptools wheel ipython virtualenv virtualenvwrapper
+sudo /usr/local/bin/pip install -U pip setuptools wheel ipython virtualenv
+)
 
-source /usr/local/bin/virtualenvwrapper.sh
-mkvirtualenv reaper
+virtualenv --prompt "(reaper)" reaperenv
+source reaperenv/bin/activate
 
+(
 cd /tmp
-curl ftp://dicom.offis.de/pub/dicom/offis/software/dcmtk/snapshot/dcmtk-3.6.1_20150924.tar.gz | tar xz
+curl http://dicom.offis.de/download/dcmtk/snapshot/old/dcmtk-3.6.1_20150924.tar.gz | tar xz
 cd dcmtk-*
 ./configure --prefix=$VIRTUAL_ENV
 make all
 make install
+)
 
-python setup.py install
+git clone https://github.com/scitran/reaper.git && cd reaper
+pip install -r requirements.txt -r requirements_dicom.txt
 ```
 
 ### Reaping
 
 ```
-./reaper/pfile_reaper.py <path>
-./reaper/dicom_reaper.py <host> <port> <return port> reaper <scanner AET>
-./reaper/dicom_file_reaper.py <path>
-./reaper/meeg_file_reaper.py <path>
+PYTHONPATH=. bin/pfile_reaper.py <path>
+PYTHONPATH=. bin/dicom_reaper.py <host> <port> <return port> reaper <scanner AET>
+PYTHONPATH=. bin/dicom_file_reaper.py <path>
+PYTHONPATH=. bin/meeg_file_reaper.py <path>
 
 ```
 
