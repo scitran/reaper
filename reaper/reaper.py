@@ -374,8 +374,9 @@ def main(cls, positional_args, optional_args):
         og.add_argument(*args, **kwargs)
     args = arg_parser.parse_args()
 
-    if not os.path.isdir(os.path.dirname(args.persistence_file)):
-        os.makedirs(os.path.dirname(args.persistence_file))
+    persistence_dir = os.path.normpath(os.path.dirname(args.persistence_file))
+    if not os.path.isdir(persistence_dir):
+        os.makedirs(persistence_dir)
 
     if args.insecure:
         requests.packages.urllib3.disable_warnings()

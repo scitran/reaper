@@ -1,0 +1,7 @@
+#!/usr/bin/env python
+
+# vim: filetype=python
+
+import reaper.pfile_reaper
+
+reaper.pfile_reaper.main()
