@@ -279,9 +279,11 @@ class Reaper(object):
 
     @persistent_state.setter
     def persistent_state(self, state):
-        with open(self.persistence_file, 'w') as persistence_file:
+        temp_persistence_file = '/.'.join(os.path.split(self.persistence_file))
+        with open(temp_persistence_file, 'w') as persistence_file:
             json.dump(state, persistence_file, indent=4, separators=(',', ': '), default=util.datetime_encoder)
             persistence_file.write('\n')
+        os.rename(temp_persistence_file, self.persistence_file)
 
     def reap_peripheral_data(self, reap_path, reap_data, reap_name, log_info):
         for pdn, pdp in self.peripheral_data.iteritems():
