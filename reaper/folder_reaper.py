@@ -55,6 +55,9 @@ KNOWN_FILETYPES = {
     '.m':               'source code',
     '.py':              'source code',
 
+    '.qa.json':         'qa',
+    '.qa.png':          'qa',
+
     '.7':               'pfile',
     '.7.gz':            'pfile',
     '.bval':            'bval',
@@ -65,9 +68,6 @@ KNOWN_FILETYPES = {
     '.nii.gz':          'nifti',
 
     '.gephysio.zip':    'gephysio',
-
-    '.qa.json':         'qa',
-    '.qa.png':          'qa',
 }
 
 

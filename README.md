@@ -25,17 +25,7 @@ make install
 )
 
 git clone https://github.com/scitran/reaper.git && cd reaper
-pip install -r requirements.txt -r requirements_dicom.txt
-```
-
-### Reaping
-
-```
-PYTHONPATH=. bin/pfile_reaper.py <path>
-PYTHONPATH=. bin/dicom_reaper.py <host> <port> <return port> reaper <scanner AET>
-PYTHONPATH=. bin/dicom_file_reaper.py <path>
-PYTHONPATH=. bin/meeg_file_reaper.py <path>
-
+python setup.py develop
 ```
 
 

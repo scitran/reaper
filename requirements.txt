@@ -1,4 +1,0 @@
-pytz
-tzlocal
-requests
-requests_toolbelt
