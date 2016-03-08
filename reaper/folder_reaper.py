@@ -84,6 +84,7 @@ def guess_filetype(path):
 def scan_folder(path):
     projects = []
     for dirpath, dirnames, filenames in os.walk(path):
+        filenames = [fn for fn in filenames if not fn.startswith('.')]  # ignore dotfiles
         dirnames[:] = [dn for dn in dirnames if not dn.startswith('.')] # use slice assignment to influence walk
         relpath = os.path.relpath(dirpath, path)
         if relpath == '.':
