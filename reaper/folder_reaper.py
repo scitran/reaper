@@ -75,7 +75,7 @@ def guess_filetype(path):
     particles = os.path.basename(path).split('.')[1:]
     extentions = ['.' + '.'.join(particles[i:]) for i in range(len(particles))]
     for ext in extentions:
-        filetype = KNOWN_FILETYPES.get(ext)
+        filetype = KNOWN_FILETYPES.get(ext.lower())
         if filetype:
             break
     return filetype
