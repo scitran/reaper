@@ -11,7 +11,6 @@ from . import tempdir as tempfile
 logging.basicConfig(
     format='%(asctime)s %(levelname)8.8s %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
-    level=logging.DEBUG,
 )
 
 log = logging.getLogger()
@@ -194,6 +193,7 @@ def main():
     arg_parser.add_argument('path', help='path to reap')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-u', '--unattended', action='store_true', help='do not stop for user confirmation')
+    arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
 
     auth_group = arg_parser.add_mutually_exclusive_group(required=False)
     auth_group.add_argument(      '--oauth', action='store_true', help='read OAuth token from ' + OAUTH_TOKEN_VAR)
@@ -201,6 +201,8 @@ def main():
     arg_parser.add_argument(      '--root', action='store_true', help='send API requests as site admin')
 
     args = arg_parser.parse_args()
+
+    log.setLevel(getattr(logging, args.loglevel.upper()))
 
     if args.insecure:
         requests.packages.urllib3.disable_warnings()
@@ -217,10 +219,11 @@ def main():
             log.critical(OAUTH_TOKEN_VAR + ' empty or undefined')
             sys.exit()
 
-
     http_params = {}
     if args.root:
         http_params['root'] = 'true'
+
+    log.debug(args)
 
     log.info('Inspecting  %s' % args.path)
     projects = scan_folder(args.path)
