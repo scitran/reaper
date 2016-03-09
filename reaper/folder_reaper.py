@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import logging
 import argparse
 import requests
@@ -20,54 +21,8 @@ logging.getLogger('requests').setLevel(logging.WARNING) # silence Requests libra
 
 OAUTH_TOKEN_VAR = 'SCITRAN_REAPER_OAUTH_TOKEN'
 
-KNOWN_FILETYPES = {
-    '.pdf':             'pdf',
-    '.txt':             'text',
-
-    '.csv':             'tabular data',
-    '.csv.gz':          'tabular data',
-
-    '.bmp':             'image',
-    '.gif':             'image',
-    '.jpeg':            'image',
-    '.jpg':             'image',
-    '.png':             'image',
-    '.tif':             'image',
-    '.tiff':            'image',
-
-    '.mov':             'video',
-    '.mp4':             'video',
-    '.mpeg':            'video',
-    '.mpg':             'video',
-
-    '.doc':             'document',
-    '.docx':            'document',
-    '.ppt':             'presentation',
-    '.pptx':            'presentation',
-    '.xls':             'spredsheet',
-    '.xlsx':            'spredsheet',
-
-    '.c':               'source code',
-    '.cpp':             'source code',
-    '.java':            'source code',
-    '.js':              'source code',
-    '.m':               'source code',
-    '.py':              'source code',
-
-    '.qa.json':         'qa',
-    '.qa.png':          'qa',
-
-    '.7':               'pfile',
-    '.7.gz':            'pfile',
-    '.bval':            'bval',
-    '.bvec':            'bvec',
-    '.dcm':             'dicom',
-    '.nii':             'nifti',
-    '.nii.gz':          'nifti',
-    '.nii.gz':          'nifti',
-
-    '.gephysio.zip':    'gephysio',
-}
+with open(os.path.join(os.path.dirname(__file__), 'types.json')) as fd:
+    KNOWN_FILETYPES = json.load(fd)
 
 
 def guess_filetype(path):
