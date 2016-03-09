@@ -9,6 +9,7 @@ log = logging.getLogger('reaper')
 logging.getLogger('requests').setLevel(logging.WARNING)
 
 import os
+import re
 import sys
 import json
 import pytz
@@ -113,7 +114,6 @@ class Reaper(object):
         self.timezone = options.get('timezone')
         self.oneshot = options.get('oneshot') or False
         self.working_hours = options.get('workinghours')
-        log.setLevel(getattr(logging, (options.get('loglevel') or 'info').upper()))
 
         self.state = {}
         self.alive = True
@@ -254,6 +254,17 @@ class Reaper(object):
                 metadata[md_group][md_field] = value
         return metadata
 
+    def is_desired_item(self, opt):
+        if self.opt is None:
+            return True
+        if self.opt == 'in' and opt is not None and not re.match(self.opt_value, opt.lower()):
+            log.info('ignoring     %s (non-matching opt-in)' % opt)
+            return False
+        if self.opt == 'out' and re.match(self.opt_value, opt.lower()):
+            log.info('ignoring     %s (matching opt-out)' % opt)
+            return False
+        return True
+
     @property
     def in_working_hours(self):
         if not self.working_hours:
@@ -279,6 +290,7 @@ class Reaper(object):
 
     @persistent_state.setter
     def persistent_state(self, state):
+        log.debug('updating persistence file')
         temp_persistence_file = '/.'.join(os.path.split(self.persistence_file))
         with open(temp_persistence_file, 'w') as persistence_file:
             json.dump(state, persistence_file, indent=4, separators=(',', ': '), default=util.datetime_encoder)
@@ -365,7 +377,7 @@ def main(cls, positional_args, optional_args):
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='retrieve all existing data and exit')
-    arg_parser.add_argument('-l', '--loglevel', help='log level [INFO]')
+    arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-k', '--workinghours', nargs=2, type=int, help='working hours in 24hr time [0 24]')
 
@@ -377,6 +389,8 @@ def main(cls, positional_args, optional_args):
         og.add_argument(*args, **kwargs)
     args = arg_parser.parse_args()
 
+    log.setLevel(getattr(logging, args.loglevel.upper()))
+
     persistence_dir = os.path.normpath(os.path.dirname(args.persistence_file))
     if not os.path.isdir(persistence_dir):
         os.makedirs(persistence_dir)
@@ -386,6 +400,8 @@ def main(cls, positional_args, optional_args):
 
     if args.workinghours:
         args.workinghours = map(datetime.time, args.workinghours)
+
+    log.debug(args)
 
     reaper = cls(vars(args))
 

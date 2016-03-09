@@ -142,7 +142,9 @@ class Response(dict):
         for cv_name in requested_cv_names:
             self[cv_name] = None
         for cv in self.dicom_cv_list:
-            if cv.value != '(no value available)':
+            if cv.value == '(no value available)':
+                self[cv.label] = ''
+            else:
                 self[cv.label] = cv.value.strip('\x00')
 
     def __dir__(self):

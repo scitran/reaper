@@ -5,7 +5,6 @@ from setuptools import setup, find_packages
 install_requires = [
     'pytz',
     'tzlocal',
-    'requests',
     'requests_toolbelt',
     'pydicom',
 ]
