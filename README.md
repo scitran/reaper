@@ -25,17 +25,7 @@ make install
 )
 
 git clone https://github.com/scitran/reaper.git && cd reaper
-pip install -r requirements.txt -r requirements_dicom.txt
-```
-
-### Reaping
-
-```
-PYTHONPATH=. bin/pfile_reaper.py <path>
-PYTHONPATH=. bin/dicom_reaper.py <host> <port> <return port> reaper <scanner AET>
-PYTHONPATH=. bin/dicom_file_reaper.py <path>
-PYTHONPATH=. bin/meeg_file_reaper.py <path>
-
+python setup.py develop
 ```
 
 
@@ -51,4 +41,24 @@ findscu --verbose -S -aet reaper -aec <scanner AET> -k QueryRetrieveLevel="SERIE
 
 ```
 ./reaper/meeg_file_reaper.py -s 1 -i -u https://localhost:8443/api/reaper?secret=change-me <path>
+```
+
+### Folder Reaper Schema
+```
+# 1. Files not supported at scitran-group or subject-label.
+# 2. Multiple files/folders supported at all levels where single file/folders are.
+$ tree /testdata/
+/testdata/
+└── scitran-group
+    └── scitran-project
+        ├── project-file-attachment
+        └── subject-label
+            └── session-label
+                ├── session-file-attachment
+                └── acquisition-label
+                    ├── no-type-file
+                    └── data-type
+                        ├── data-file-1
+                        └── data-file-2
+
 ```

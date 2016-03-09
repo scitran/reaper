@@ -319,8 +319,9 @@ class Reaper(object):
             raise ValueError('bad upload URI "%s"' % uri)
 
     def http_upload(self, filename, filepath, metadata, uri):
+        # TODO dedup this with util.upload_file()
         headers = {
-            'User-Agent': 'SciTran Drone reaper ' + self.id_,
+            'User-Agent': 'SciTran Drone %s Reaper ' % self.id_,
         }
         uri, _, secret = uri.partition('?secret=')
         if secret:
@@ -328,7 +329,7 @@ class Reaper(object):
         with open(filepath, 'rb') as fd:
             try:
                 metadata_json = json.dumps(metadata, default=util.metadata_encoder)
-                mpe = requests_toolbelt.multipart.encoder.MultipartEncoder(fields={'metadata': metadata_json, 'file': (filename, fd)}) # FIXME do we need to set the content type of each file?
+                mpe = requests_toolbelt.multipart.encoder.MultipartEncoder(fields={'metadata': metadata_json, 'file': (filename, fd)})
                 headers['Content-Type'] = mpe.content_type
                 r = requests.post(uri, data=mpe, headers=headers, verify=not self.insecure)
             except requests.exceptions.ConnectionError as e:
