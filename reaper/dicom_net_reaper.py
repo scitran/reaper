@@ -52,7 +52,7 @@ def parse_id(_id, default_subj_code):
     """
     subj_code = group_name = exp_name = None
     if _id is not None:
-        subj_code, _, lab_info = _id.strip(string.punctuation + string.whitespace).lower().rpartition('@')
+        subj_code, _, lab_info = _id.strip(string.punctuation + string.whitespace).rpartition('@')
         group_name, _, exp_name = lab_info.partition('/')
     return subj_code or default_subj_code, group_name, exp_name
 
