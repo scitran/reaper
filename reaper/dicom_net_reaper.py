@@ -78,11 +78,7 @@ class DicomNetReaper(reaper.Reaper):
         self.scu = scu.SCU(options.get('host'), options.get('port'), options.get('return_port'), options.get('aet'), options.get('aec'))
         super(DicomNetReaper, self).__init__(self.scu.aec, options)
         self.anonymize = options.get('anonymize')
-        if options['opt_in'] and options['opt_out']:
-            import sys # FIXME handle arg augmentation with closure
-            log.critical('opt-in and opt-out cannot be used together')
-            sys.exit(1)
-        elif options['opt_in']:
+        if options['opt_in']:
             self.opt = 'in'
         elif options['opt_out']:
             self.opt = 'out'
@@ -274,21 +270,22 @@ class DicomNetReaper(reaper.Reaper):
             return dob
 
 
-def main():
-    positional_args = [
-        (('host',), dict(help='remote hostname or IP')),
-        (('port',), dict(help='remote port')),
-        (('return_port',), dict(help='local return port')),
-        (('aet',), dict(help='local AE title')),
-        (('aec',), dict(help='remote AE title')),
-    ]
-    optional_args = [
-        (('-A', '--no-anonymize'), dict(dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')),
-        (('--opt-in',), dict(nargs=2, help='opt-in field and value')),
-        (('--opt-out',), dict(nargs=2, help='opt-out field and value')),
-        (('--id-field',), dict(default='PatientID', help='DICOM field for id info [PatientID]')),
-    ]
-    reaper.main(DicomNetReaper, positional_args, optional_args)
+def update_arg_parser(ap):
+    ap.add_argument('host', help='remote hostname or IP'),
+    ap.add_argument('port', help='remote port'),
+    ap.add_argument('return_port', help='local return port'),
+    ap.add_argument('aet', help='local AE title'),
+    ap.add_argument('aec', help='remote AE title'),
 
-if __name__ == '__main__':
-    main()
+    ap.add_argument('-A', '--no-anonymize', dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate'),
+    ap.add_argument('--id-field', default='PatientID', help='DICOM field for id info [PatientID]'),
+
+    opt_group = ap.add_mutually_exclusive_group()
+    opt_group.add_argument('--opt-in', nargs=2, help='opt-in field and value'),
+    opt_group.add_argument('--opt-out', nargs=2, help='opt-out field and value'),
+
+    return ap
+
+
+def main():
+    reaper.main(DicomNetReaper, update_arg_parser)

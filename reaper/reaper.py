@@ -363,7 +363,7 @@ class Reaper(object):
         pass
 
 
-def main(cls, positional_args, optional_args):
+def main(cls, arg_parser_update=None):
     import signal
     import argparse
 
@@ -381,12 +381,8 @@ def main(cls, positional_args, optional_args):
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-k', '--workinghours', nargs=2, type=int, help='working hours in 24hr time [0 24]')
 
-    pg = arg_parser.add_argument_group(cls.__name__ + ' arguments')
-    for args, kwargs in positional_args:
-        pg.add_argument(*args, **kwargs)
-    og = arg_parser.add_argument_group(cls.__name__ + ' options')
-    for args, kwargs in optional_args:
-        og.add_argument(*args, **kwargs)
+    if arg_parser_update is not None:
+        arg_parser = arg_parser_update(arg_parser)
     args = arg_parser.parse_args()
 
     log.setLevel(getattr(logging, args.loglevel.upper()))

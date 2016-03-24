@@ -33,11 +33,7 @@ class PFileReaper(reaper.Reaper):
             sys.exit(1)
         self.data_glob = os.path.join(options.get('path'), 'P?????.7')
         super(PFileReaper, self).__init__(options.get('path').strip('/').replace('/', '_'), options)
-        if options['opt_in'] and options['opt_out']:
-            import sys # FIXME handle arg augmentation with closure
-            log.critical('opt-in and opt-out cannot be used together')
-            sys.exit(1)
-        elif options['opt_in']:
+        if options['opt_in']:
             self.opt = 'in'
         elif options['opt_out']:
             self.opt = 'out'
@@ -231,18 +227,17 @@ class _RawPFile(object):
         return ''.join([str(i-1) if i < 11 else '.' for pair in [(ord(c) >> 4, ord(c) & 15) for c in uid] for i in pair if i > 0])
 
 
+def update_arg_parser(ap):
+    ap.add_argument('path', help='path to PFiles')
+    ap.add_argument('--aux', action='store_true', help='include auxiliary files'),
+    ap.add_argument('--id-field', default='PatientID', help='DICOM field for id info [PatientID]'),
+
+    opt_group = ap.add_mutually_exclusive_group()
+    opt_group.add_argument('--opt-in', nargs=2, help='opt-in field and value'),
+    opt_group.add_argument('--opt-out', nargs=2, help='opt-out field and value'),
+
+    return ap
+
 
 def main():
-    positional_args = [
-        (('path',), dict(help='path to PFiles')),
-    ]
-    optional_args = [
-        (('--opt-in',), dict(nargs=2, help='opt-in field and value')),
-        (('--opt-out',), dict(nargs=2, help='opt-out field and value')),
-        (('--id-field',), dict(default='PatientID', help='DICOM field for id info [PatientID]')),
-        (('--aux',), dict(action='store_true', help='include auxiliary files')),
-    ]
-    reaper.main(PFileReaper, positional_args, optional_args)
-
-if __name__ == '__main__':
-    main()
+    reaper.main(PFileReaper, update_arg_parser)
