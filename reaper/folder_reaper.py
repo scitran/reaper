@@ -79,6 +79,15 @@ def scan_folder(path):
     return projects
 
 
+def tweak_labels(projects):
+    for p in projects:
+        session_labels = [s['label'] for s in p['sessions']]
+        if len(set(session_labels)) < len(session_labels):
+            for s in p['sessions']:
+                s['label'] = s['subject']['code'] + '_' + s['label']
+    return projects
+
+
 def print_upload_summary(projects):
     pass
 
@@ -182,6 +191,7 @@ def main():
 
     log.info('Inspecting  %s' % args.path)
     projects = scan_folder(args.path)
+    projects = tweak_labels(projects)
     if not args.unattended:
         print_upload_summary(projects)
         # wait for user confirmation
