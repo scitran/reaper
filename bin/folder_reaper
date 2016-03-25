@@ -1,7 +1,1 @@
-#!/usr/bin/env python
-
-# vim: filetype=python
-
-import reaper.folder_reaper
-
-reaper.folder_reaper.main()
+folder_uploader
