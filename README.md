@@ -1,5 +1,8 @@
 ### Installation
 
+#### Python and pip
+
+##### On Ubuntu Server 14.04
 ```
 (
 PYTHON_VERSION=2.7.11
@@ -11,19 +14,36 @@ make
 sudo make install
 sudo /usr/local/bin/pip install -U pip setuptools wheel ipython virtualenv
 )
+```
 
+##### On Ubuntu Server 16.04
+```
+sudo apt-get install python-pip
+sudo pip install -U pip setuptools wheel ipython virtualenv # may need to install setuptools separately first
+```
+
+#### Virtual Env
+```
 virtualenv --prompt "(reaper)" reaperenv
 source reaperenv/bin/activate
+```
 
+#### DCMTK (only needed for DICOM reaping)
+Compile DCMTK from source, with promiscuous mode patch applied.
+```
 (
 cd /tmp
 curl http://dicom.offis.de/download/dcmtk/snapshot/old/dcmtk-3.6.1_20150924.tar.gz | tar xz
 cd dcmtk-*
+curl https://gist.githubusercontent.com/gsfr/3bbe2f89b76019792985/raw/movescu.cc.patch | patch --strip 1
 ./configure --prefix=$VIRTUAL_ENV
 make all
 make install
 )
+```
 
+#### Reaper
+```
 git clone https://github.com/scitran/reaper.git && cd reaper
 python setup.py develop
 ```
