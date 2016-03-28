@@ -22,9 +22,6 @@ def hrsize(size):
 
 def metadata_encoder(o):
     if isinstance(o, datetime.datetime):
-        # TODO do we need this check or will isoformat take care of it?
-        if o.tzinfo is None:
-            o = pytz.timezone('UTC').localize(o)
         return o.isoformat()
     elif isinstance(o, datetime.tzinfo):
         return o.zone
