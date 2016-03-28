@@ -92,7 +92,7 @@ class DicomNetReaper(reaper.Reaper):
         self.peripheral_data_reapers['gephysio'] = 'gephysio'
 
     def state_str(self, _id, state):
-        return '%s (%s)' % (_id, ', '.join(['%s %s' % (k, v or 'null') for k, v in state.iteritems()]))
+        return '%s (%s)' % (_id, ', '.join(['%s %s' % (v, k or 'null') for k, v in state.iteritems()]))
 
     def instrument_query(self):
         i_state = {}
@@ -171,7 +171,7 @@ class DicomNetReaper(reaper.Reaper):
                 raise Exception('Cannot anonymize DICOM file without parsing')
             dcm = dicom.read_file(filepath, stop_before_pixels=(not anonymize))
             self._id = dcm.get(id_field, '')
-            self.opt = dcm.get(opt_field, '')
+            self.opt = dcm.get(opt_field, '') if opt_field else None
             self.acq_no = str(dcm.get('AcquisitionNumber', '')) or None if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
 
             if parse:
