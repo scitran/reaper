@@ -72,22 +72,30 @@ class PFileReaper(reaper.Reaper):
         try:
             pf = PFile(item['path'], self.id_field, self.opt_field)
         except (IOError):
-            success = None
             log.warning('skipping     %s (disappeared or unparsable)' % _id)
+            return None, {}
+        if self.is_desired_item(pf.opt):
+            if self.reap_auxfiles:
+                success, filename = self.reap_aux(_id, item, tempdir)
+            else:
+                success, filename = self.reap_one(_id, item, tempdir)
+            metadata = {filename: self.metadata(pf)}
         else:
-            if self.is_desired_item(pf.opt):
-                if self.reap_auxfiles:
-                    success = self.reap_aux(_id, item, tempdir)
-                else:
-                    success = self.reap_one(_id, item, tempdir)
-        return success
+            success = None
+            metadata = {}
+        return success, metadata
 
     def reap_one(self, _id, item, tempdir):
         pfile_size = util.hrsize(item['state']['size'])
-        log.info('reaping.zip  %s [%s%s]' % (_id, pfile_size, ''))
-        with open(item['path'], 'rb') as fd, gzip.open(os.path.join(tempdir, os.path.basename(item['path'])), 'wb') as fd_gz:
-            shutil.copyfileobj(fd, fd_gz)
-        #FIXME add return value here
+        log.info('reaping.gz   %s [%s%s]' % (_id, pfile_size, ''))
+        filepath = os.path.join(tempdir, os.path.basename(item['path']) + '.gz')
+        try:
+            with open(item['path'], 'rb') as fd, gzip.open(filepath, 'wb') as fd_gz:
+                shutil.copyfileobj(fd, fd_gz)
+        except:
+            return False, None
+        else:
+            return True, os.path.basename(filepath)
 
     def reap_aux(self, _id, item, tempdir):
         name_prefix = pf.series_uid + '_' + str(pf.acq_no)
@@ -127,6 +135,7 @@ class PFileReaper(reaper.Reaper):
             reap_time = (datetime.datetime.utcnow() - reap_start).total_seconds()
             log.info('reaped.zip   %s [%s%s] in %.1fs' % (_id, pfile_size, auxfile_str, reap_time))
             self.reap_peripheral_data(tempdir, pf, name_prefix, _id)
+        return success
 
 
 class PFile(object):
@@ -145,7 +154,7 @@ class PFile(object):
             self.opt = None
 
         self.session_uid = pf.exam_uid
-        self.subj_code, self.group_name, self.project_name = dicom_net_reaper.parse_id(self._id, 'ex' + pf.exam_no)
+        self.subj_code, self.group__id, self.project_label = dicom_net_reaper.parse_id(self._id, 'ex' + pf.exam_no)
         self.acquisition_uid = pf.series_uid + '_' + str(pf.acq_no)
         self.acquisition_timestamp = pf.timestamp
         self.acquisition_label = pf.series_desc
