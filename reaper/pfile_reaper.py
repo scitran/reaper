@@ -91,8 +91,8 @@ class PFileReaper(reaper.Reaper):
         filepath = os.path.join(tempdir, os.path.basename(item['path']) + '.gz')
         try:
             with open(item['path'], 'rb') as fd, gzip.open(filepath, 'wb') as fd_gz:
-                shutil.copyfileobj(fd, fd_gz)
-        except:
+                shutil.copyfileobj(fd, fd_gz, 2**30)
+        except Exception:
             return False, None
         else:
             return True, os.path.basename(filepath)
