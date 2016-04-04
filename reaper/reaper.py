@@ -260,10 +260,8 @@ class Reaper(object):
         if self.opt is None:
             return True
         if self.opt == 'in' and opt is not None and not re.match(self.opt_value, opt.lower()):
-            log.info('ignoring     %s (non-matching opt-in)' % opt)
             return False
         if self.opt == 'out' and re.match(self.opt_value, opt.lower()):
-            log.info('ignoring     %s (matching opt-out)' % opt)
             return False
         return True
 

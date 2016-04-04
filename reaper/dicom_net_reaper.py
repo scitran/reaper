@@ -111,6 +111,7 @@ class DicomNetReaper(reaper.Reaper):
             log.info('ignoring     %s (zero images)' % _id)
             return None, {}
         if not self.is_desired_item(item['state']['opt']):
+            log.info('ignoring     %s (non-matching opt-%s)' % (_id, self.opt))
             return None, {}
         reap_start = datetime.datetime.utcnow()
         log.info('reaping      %s' % self.state_str(_id, item['state']))
@@ -120,6 +121,7 @@ class DicomNetReaper(reaper.Reaper):
         if success and reap_cnt > 0:
             dcm = self.DicomFile(filepaths[0], self.id_field, self.opt_field)
             if not self.is_desired_item(dcm.opt):
+                log.info('ignoring     %s (non-matching opt-%s)' % (_id, self.opt))
                 return None, {}
         if success and reap_cnt == item['state']['images']:
             acq_map = self.split_into_acquisitions(_id, item, tempdir, filepaths)

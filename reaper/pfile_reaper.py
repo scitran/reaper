@@ -81,6 +81,7 @@ class PFileReaper(reaper.Reaper):
                 success, filename = self.reap_one(_id, item, tempdir)
             metadata = {filename: self.metadata(pf)}
         else:
+            log.info('ignoring     %s (non-matching opt-%s)' % (_id, self.opt))
             success = None
             metadata = {}
         return success, metadata
