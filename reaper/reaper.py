@@ -252,6 +252,8 @@ class Reaper(object):
             if value is not None:
                 metadata.setdefault(md_group, {})
                 metadata[md_group][md_field] = value
+        metadata['session']['subject'] = metadata.pop('subject', {})    # FIXME HACK
+        metadata['acquisition']['files'] = [metadata.pop('file', {})]   # FIXME HACK
         return metadata
 
     def is_desired_item(self, opt):
@@ -342,6 +344,7 @@ class Reaper(object):
             headers['X-SciTran-Auth'] = secret
         with open(filepath, 'rb') as fd:
             try:
+                metadata['acquisition']['files'][0]['name'] = filename # FIXME HACK
                 metadata_json = json.dumps(metadata, default=util.metadata_encoder)
                 mpe = requests_toolbelt.multipart.encoder.MultipartEncoder(fields={'metadata': metadata_json, 'file': (filename, fd)})
                 headers['Content-Type'] = mpe.content_type

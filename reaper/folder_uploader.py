@@ -103,7 +103,7 @@ def upload(projects, api_url, http_headers, http_params, insecure):
         rs.verify = not insecure
         rs.headers = http_headers
         rs.params = http_params
-        upload_url = api_url + '/uploader'
+        upload_url = api_url + '/upload/label'
         action_str = 'Upserting {}files to {}'
         file_str = '  {} {f[type]:10}: {f[path]}'
 
