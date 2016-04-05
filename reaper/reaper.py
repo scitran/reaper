@@ -335,7 +335,8 @@ class Reaper(object):
     def http_upload(self, filename, filepath, metadata, uri):
         # TODO dedup this with util.upload_file()
         headers = {
-            'User-Agent': 'SciTran Drone Reaper %s ' % self.id_,
+            'X-SciTran-Method': 'reaper',
+            'X-SciTran-Name': self.id_,
         }
         uri, _, secret = uri.partition('?secret=')
         if secret:

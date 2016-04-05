@@ -173,8 +173,10 @@ def main():
 
     args.url = args.url.strip('/')
 
-    http_headers = {}
-    http_headers['User-Agent'] = 'SciTran Drone Importer Admin Import'
+    http_headers = {
+        'X-SciTran-Method': 'importer',
+        'X-SciTran-Name': 'Admin Import',
+    }
     if args.secret:
         http_headers['X-SciTran-Auth'] = args.secret
     elif args.oauth:
