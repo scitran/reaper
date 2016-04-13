@@ -76,14 +76,12 @@ class PFileReaper(reaper.Reaper):
             return None, {}
         if self.is_desired_item(pf.opt):
             if self.reap_auxfiles:
-                success, filename = self.reap_aux(_id, item, tempdir)
+                success, metadata = self.reap_aux(_id, item, pf, tempdir)
             else:
-                success, filename = self.reap_one(_id, item, tempdir)
-            metadata = {filename: self.metadata(pf)}
+                success, metadata = self.reap_one(_id, item, tempdir)
         else:
             log.info('ignoring     %s (non-matching opt-%s)' % (_id, self.opt))
-            success = None
-            metadata = {}
+            success, metadata = None
         return success, metadata
 
     def reap_one(self, _id, item, tempdir):
@@ -96,47 +94,37 @@ class PFileReaper(reaper.Reaper):
         except Exception:
             return False, None
         else:
-            return True, os.path.basename(filepath)
+            return True, {os.path.basename(filepath): self.metadata(pf)}
 
-    def reap_aux(self, _id, item, tempdir):
-        name_prefix = pf.series_uid + '_' + str(pf.acq_no)
-        reap_path = tempdir + '/' + name_prefix + '_' + FILETYPE
-        os.mkdir(reap_path)
-        auxfiles = [(ap, _id + '_' + ap.rsplit('_', 1)[-1]) for ap in glob.glob(item['path'] + '_' + pf.series_uid + '_*')]
+    def reap_aux(self, _id, item, pf, tempdir):
+        uid_infix = '_' + pf.series_uid + '_'
+        auxpaths = glob.glob(os.path.join(os.path.dirname(item['path']), '*' + uid_infix + '*'))
+        auxfiles = [(ap, os.path.basename(ap).replace(uid_infix, '_')) for ap in auxpaths]
         log.debug('staging      %s%s' % (_id, ', ' + ', '.join([af[1] for af in auxfiles]) if auxfiles else ''))
-        os.symlink(item['path'], os.path.join(reap_path, _id))
-        for af in auxfiles:
-            os.symlink(af[0], os.path.join(reap_path, af[1]))
+
+        reap_path = os.path.join(tempdir, pf.acquisition_uid + '_' + FILETYPE)
+        os.mkdir(reap_path)
+
+        os.symlink(item['path'], os.path.join(reap_path, os.path.basename(item['path'])))
+        for ap, an in auxfiles:
+            os.symlink(ap, os.path.join(reap_path, an))
+
         pfile_size = util.hrsize(item['state']['size'])
-        metadata = {
-            'filetype': FILETYPE,
-            'timezone': self.timezone,
-            'header': {
-                'group': pf.nims_group_id,
-                'project': pf.nims_project,
-                'session': pf.nims_session_id,
-                'session_no': pf.series_no,
-                'session_desc': pf.series_desc,
-                'acquisition': pf.nims_acquisition_id,
-                'acquisition_no': pf.acq_no,
-                'timestamp': pf.nims_timestamp,
-            },
-        }
         reap_start = datetime.datetime.utcnow()
-        auxfile_str = ' + %d aux files' % len(auxfiles) if auxfiles else ''
-        log.info('reaping.zip  %s [%s%s]' % (_id, pfile_size, auxfile_str))
+        auxfile_log_str = ' + %d aux files' % len(auxfiles) if auxfiles else ''
+        log.info('reaping.zip  %s [%s%s]' % (_id, pfile_size, auxfile_log_str))
+        metadata = self.metadata(pf)
         try:
-            util.create_archive(reap_path+'.zip', reap_path, os.path.basename(reap_path), metadata)
+            filepath = util.create_archive(reap_path, os.path.basename(reap_path), metadata)
             shutil.rmtree(reap_path)
-        except (IOError):
-            success = False
+        except Exception:
             log.warning('reap error   %s%s' % (_id, ' or aux files' if auxfiles else ''))
+            return False, None
         else:
-            success = True
             reap_time = (datetime.datetime.utcnow() - reap_start).total_seconds()
-            log.info('reaped.zip   %s [%s%s] in %.1fs' % (_id, pfile_size, auxfile_str, reap_time))
-            self.reap_peripheral_data(tempdir, pf, name_prefix, _id)
-        return success
+            log.info('reaped.zip   %s [%s%s] in %.1fs' % (_id, pfile_size, auxfile_log_str, reap_time))
+            self.reap_peripheral_data(tempdir, pf, pf.acquisition_uid, _id)
+            return True, {os.path.basename(filepath): metadata}
 
 
 class PFile(object):
@@ -155,10 +143,11 @@ class PFile(object):
             self.opt = None
 
         self.session_uid = pf.exam_uid
-        self.subj_code, self.group__id, self.project_label = dicom_net_reaper.parse_id(self._id, 'ex' + pf.exam_no)
+        self.series_uid = pf.series_uid
         self.acquisition_uid = pf.series_uid + '_' + str(pf.acq_no)
         self.acquisition_timestamp = pf.timestamp
         self.acquisition_label = pf.series_desc
+        self.subj_code, self.group__id, self.project_label = dicom_net_reaper.parse_id(self._id, 'ex' + pf.exam_no)
         self.file_type = FILETYPE
 
 

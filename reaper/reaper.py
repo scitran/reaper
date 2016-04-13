@@ -310,7 +310,6 @@ class Reaper(object):
     def upload(self, metadata_map, path):
         for filename, metadata in metadata_map.iteritems():
             filepath = os.path.join(path, filename)
-            log.info('hashing      %s' % filename)
             for uri in self.upload_uris:
                 log.info('uploading    %s [%s] to %s' % (filename, util.hrsize(os.path.getsize(filepath)), uri))
                 start = datetime.datetime.utcnow()
