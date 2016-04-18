@@ -112,7 +112,7 @@ def upload(projects, api_url, http_headers, http_params, insecure):
             p_label = group + ' > ' + project['label']
             metadata = {'group': { '_id': group}, 'project': { 'label': project['label']}}
             log.info('Upserting group ' + group)
-            r = rs.post(api_url + '/groups', json={'_id': group})
+            r = rs.post(api_url + '/groups', json={'_id': group.lower(), 'name': group})
             if not r.ok:
                 log.error('Failed to upsert group ' + group + '. Trying to proceed anyway.')
             log.info(action_str.format('', p_label))
