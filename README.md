@@ -35,7 +35,7 @@ Compile DCMTK from source, with promiscuous mode patch applied.
 cd /tmp
 curl http://dicom.offis.de/download/dcmtk/snapshot/old/dcmtk-3.6.1_20150924.tar.gz | tar xz
 cd dcmtk-*
-curl https://gist.githubusercontent.com/gsfr/3bbe2f89b76019792985/raw/movescu.cc.patch | patch --strip 1
+curl https://raw.githubusercontent.com/scitran/reaper/master/movescu.cc.patch | patch --strip 1
 ./configure --prefix=$VIRTUAL_ENV
 make all
 make install
