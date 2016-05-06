@@ -164,7 +164,7 @@ class Reaper(object):
                 query_start = datetime.datetime.utcnow()
                 self.state = self.instrument_query()
                 if self.state is not None:
-                    log.debug('query time   %.1fs' % (datetime.datetime.utcnow() - query_start).total_seconds())
+                    log.info('query time   %.1fs' % (datetime.datetime.utcnow() - query_start).total_seconds())
                     for item in self.state.itervalues():
                         item['reaped'] = True
                     self.persistent_state = self.state
@@ -200,10 +200,10 @@ class Reaper(object):
                     if item['lastseen'] + self.graceperiod > reap_start:
                         if not item.get('retained', False):
                             item['retained'] = True
-                            log.debug('retaining    %s' % _id)
+                            log.info('retaining    %s' % _id)
                         new_state[_id] = item
                     else:
-                        log.debug('purging      %s' % _id)
+                        log.info('purging      %s' % _id)
                 self.persistent_state = self.state = new_state
                 reap_queue_len = len(reap_queue)
                 for i, _id_item in enumerate(reap_queue):
@@ -239,7 +239,7 @@ class Reaper(object):
                 log.warning('unable to retrieve instrument state')
             sleeptime = self.sleeptime - (datetime.datetime.utcnow() - reap_start).total_seconds()
             if sleeptime > 0:
-                log.debug('sleeping     %.1fs' % sleeptime)
+                log.info('sleeping     %.1fs' % sleeptime)
                 time.sleep(sleeptime)
 
     def metadata(self, obj):

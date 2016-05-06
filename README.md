@@ -19,10 +19,10 @@ sudo /usr/local/bin/pip install -U pip setuptools wheel ipython virtualenv
 ##### On Ubuntu Server 16.04
 ```
 sudo apt-get install python-pip
-sudo pip install -U pip setuptools wheel ipython virtualenv # may need to install setuptools separately first
+sudo pip install -U pip setuptools wheel ipython virtualenv
 ```
 
-#### Virtual Env
+#### Virtualenv
 ```
 virtualenv --prompt "(reaper)" reaperenv
 source reaperenv/bin/activate
@@ -52,8 +52,9 @@ python setup.py develop
 ### Debugging
 
 ```
-findscu --verbose -S -aet reaper -aec <scanner AET> -k QueryRetrieveLevel="STUDY" -k StudyDate="" <host> <port>
-findscu --verbose -S -aet reaper -aec <scanner AET> -k QueryRetrieveLevel="SERIES" -k StudyDate="" <host> <port>
+AEC=scanner; HOST=host; PORT=port
+findscu --verbose -S -aet reaper -aec $AEC -k QueryRetrieveLevel="STUDY"  -k StudyDate="" $HOST $PORT
+findscu --verbose -S -aet reaper -aec $AEC -k QueryRetrieveLevel="SERIES" -k StudyDate="" $HOST $PORT
 ```
 
 
