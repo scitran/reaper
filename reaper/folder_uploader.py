@@ -22,7 +22,8 @@ logging.getLogger('requests').setLevel(logging.WARNING) # silence Requests libra
 OAUTH_TOKEN_VAR = 'SCITRAN_REAPER_OAUTH_TOKEN'
 
 with open(os.path.join(os.path.dirname(__file__), 'types.json')) as fd:
-    KNOWN_FILETYPES = json.load(fd)
+    type_map = json.load(fd)
+KNOWN_FILETYPES = {ext: filetype for filetype, extensions in type_map.iteritems() for ext in extensions}
 
 
 def guess_filetype(path):
