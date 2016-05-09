@@ -94,7 +94,9 @@ def print_upload_summary(projects):
 
 
 def file_metadata(f, **kwargs):
-    md = {'name': os.path.basename(f['path']), 'type': f['type']}
+    md = {'name': os.path.basename(f['path'])}
+    if f['type'] is not None:
+        md['type'] = f['type']
     md.update(kwargs)
     return md
 
