@@ -40,12 +40,14 @@ def datetime_decoder(dct):
     return dct
 
 
-def create_archive(content, arcname, metadata, outdir=None, filenames=None):
+def create_archive(content, arcname, metadata, outdir=None):
     path = (os.path.join(outdir, arcname) if outdir else os.path.join(os.path.dirname(content), arcname)) + '.zip'
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
         zf.comment = json.dumps(metadata, default=metadata_encoder)
-        for fn in filenames or os.listdir(content):
-            zf.write(os.path.join(content, fn), os.path.join(arcname, fn))
+        files = [(fn, os.path.join(content, fn)) for fn in os.listdir(content)]
+        files.sort(key=lambda f: os.path.getsize(f[1]))
+        for fn, fp in files:
+            zf.write(fp, os.path.join(arcname, fn))
     return path
 
 
