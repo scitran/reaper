@@ -33,6 +33,8 @@ def guess_filetype(path):
         filetype = KNOWN_FILETYPES.get(ext.lower())
         if filetype:
             break
+    else:
+        filetype = None
     return filetype
 
 
