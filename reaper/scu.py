@@ -19,8 +19,16 @@ import subprocess
 
 log = logging.getLogger('reaper.dicom.scu')
 
-RESPONSE_RE = re.compile(r'I: Find Response.*\n.*\nI: # Dicom-Data-Set\nI: # Used TransferSyntax: (?P<txx>.+)\n(?P<dicom_cvs>(I: \(.+\) .+\n){2,})')
-DICOM_CV_RE = re.compile(r'.*\((?P<idx_0>[0-9a-f]{4}),(?P<idx_1>[0-9a-f]{4})\) (?P<type>\w{2}) (?P<value>.+)#[ ]*(?P<length>\d+),[ ]*(?P<n_elems>\d+) (?P<label>\w+)\n')
+RESPONSE_RE = re.compile(
+    r'I: Find Response.*\n.*\n'
+    r'I: # Dicom-Data-Set\n'
+    r'I: # Used TransferSyntax: (?P<txx>.+)\n'
+    r'(?P<dicom_cvs>(I: \(.+\) .+\n){2,})'
+)
+DICOM_CV_RE = re.compile(
+    r'.*\((?P<idx_0>[0-9a-f]{4}),(?P<idx_1>[0-9a-f]{4})\) '
+    r'(?P<type>\w{2}) (?P<value>.+)#[ ]*(?P<length>\d+),[ ]*(?P<n_elems>\d+) (?P<label>\w+)\n'
+)
 
 
 class SCU(object):
@@ -46,10 +54,12 @@ class SCU(object):
         output = ''
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
+        # pylint: disable=broad-except
         except Exception as ex:
-            log.debug('%s: %s' % (type(ex).__name__, ex))
-            output and log.debug(output)
-        if output and re.search('I: Received Final Find Response \(Success\)', output):
+            log.debug('%s: %s', type(ex).__name__, ex)
+            if output:
+                log.debug(output)
+        if output and re.search(r'I: Received Final Find Response \(Success\)', output):
             return [Response(query.kwargs.keys(), match_obj.groupdict()) for match_obj in RESPONSE_RE.finditer(output)]
         else:
             log.warning(cmd)
@@ -63,11 +73,13 @@ class SCU(object):
         output = ''
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
+        # pylint: disable=broad-except
         except Exception as ex:
-            log.debug('%s: %s' % (type(ex).__name__, ex))
-            output and log.debug(output)
+            log.debug('%s: %s', type(ex).__name__, ex)
+            if output:
+                log.debug(output)
         if output:
-            success = re.search('I: Received Final Move Response \(Success\)', output)
+            success = re.search(r'I: Received Final Move Response \(Success\)', output)
             img_cnt = len(os.listdir(dest_path))
         else:
             success = False
@@ -86,6 +98,8 @@ class Query(object):
     StudyNumber="500").
     """
 
+    # pylint: disable=too-few-public-methods
+
     def __init__(self, retrieve_level, **kwargs):
         self.retrieve_level = retrieve_level
         self.kwargs = kwargs
@@ -101,16 +115,19 @@ class Query(object):
 
 
 class StudyQuery(Query):
+    # pylint: disable=missing-docstring,too-few-public-methods
     def __init__(self, **kwargs):
         super(StudyQuery, self).__init__('STUDY', **kwargs)
 
 
 class SeriesQuery(Query):
+    # pylint: disable=missing-docstring,too-few-public-methods
     def __init__(self, **kwargs):
         super(SeriesQuery, self).__init__('SERIES', **kwargs)
 
 
 class ImageQuery(Query):
+    # pylint: disable=missing-docstring,too-few-public-methods
     def __init__(self, **kwargs):
         super(ImageQuery, self).__init__('IMAGE', **kwargs)
 
@@ -118,6 +135,8 @@ class ImageQuery(Query):
 class DicomCV(object):
 
     """Detailed DicomCV object."""
+
+    # pylint: disable=too-few-public-methods
 
     def __init__(self, dicom_cv_dict):
         self.idx = (dicom_cv_dict['idx_0'], dicom_cv_dict['idx_1'])
@@ -148,13 +167,13 @@ class Response(dict):
                 self[cv.label] = cv.value.strip('\x00')
 
     def __dir__(self):
-        """Return list of dictionary elements for tab completion in utilities like iPython."""
-        return [k for (k, v) in self.items()]
+        """Return list of dictionary elements for tab completion in utilities like IPython."""
+        return self.keys()
 
     def __getattr__(self, name):
         """Allow access of dictionary elements as members."""
         if name in self:
             return self[name]
         else:
-            log.debug('Response: %s' % self)
-            raise AttributeError, name
+            log.debug('Response: %s', self)
+            raise AttributeError(name)

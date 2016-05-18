@@ -1,5 +1,7 @@
 """This is a backport of TemporaryDirectory from Python 3.3."""
 
+# pylint: skip-file
+
 from __future__ import print_function
 
 import warnings as _warnings
@@ -25,7 +27,7 @@ class TemporaryDirectory(object):
 
     def __init__(self, suffix="", prefix=template, dir=None):
         self._closed = False
-        self.name = None # Handle mkdtemp raising an exception
+        self.name = None  # Handle mkdtemp raising an exception
         self.name = mkdtemp(suffix, prefix, dir)
 
     def __repr__(self):

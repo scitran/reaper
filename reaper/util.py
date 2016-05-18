@@ -1,14 +1,16 @@
+"""SciTran Reaper utility functions"""
+
 import os
 import json
-import pytz
 import zipfile
-import calendar
 import datetime
+
 import dateutil.parser
 import requests_toolbelt
 
 
 def hrsize(size):
+    # pylint: disable=missing-docstring
     if size < 1000:
         return '%d%s' % (size, 'B')
     for suffix in 'KMGTPEZY':
@@ -20,27 +22,31 @@ def hrsize(size):
     return '%.0f%sB' % (size, 'Y')
 
 
-def metadata_encoder(o):
-    if isinstance(o, datetime.datetime):
-        return o.isoformat()
-    elif isinstance(o, datetime.tzinfo):
-        return o.zone
-    raise TypeError(repr(o) + ' is not JSON serializable')
+def metadata_encoder(obj):
+    # pylint: disable=missing-docstring
+    if isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    elif isinstance(obj, datetime.tzinfo):
+        return obj.zone
+    raise TypeError(repr(obj) + ' is not JSON serializable')
 
 
-def datetime_encoder(o):
-    if isinstance(o, datetime.datetime):
-        return {"$isotimestamp": o.isoformat()}
-    raise TypeError(repr(o) + " is not JSON serializable")
+def datetime_encoder(obj):
+    # pylint: disable=missing-docstring
+    if isinstance(obj, datetime.datetime):
+        return {"$isotimestamp": obj.isoformat()}
+    raise TypeError(repr(obj) + " is not JSON serializable")
 
 
 def datetime_decoder(dct):
+    # pylint: disable=missing-docstring
     if "$isotimestamp" in dct:
         return dateutil.parser.parse(dct['$isotimestamp'])
     return dct
 
 
 def create_archive(content, arcname, metadata, outdir=None):
+    # pylint: disable=missing-docstring
     path = (os.path.join(outdir, arcname) if outdir else os.path.join(os.path.dirname(content), arcname)) + '.zip'
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
         zf.comment = json.dumps(metadata, default=metadata_encoder)
@@ -52,10 +58,12 @@ def create_archive(content, arcname, metadata, outdir=None):
 
 
 def localize_timestamp(timestamp, timezone):
+    # pylint: disable=missing-docstring
     return timezone.localize(timestamp)
 
 
 def upload_file(rs, url, filepath, metadata):
+    # pylint: disable=missing-docstring
     filename = os.path.basename(filepath)
     metadata_json = json.dumps(metadata, default=metadata_encoder)
     with open(filepath, 'rb') as fd:

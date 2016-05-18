@@ -1,5 +1,7 @@
 # @author:  Gunnar Schaefer
 
+# pylint: skip-file
+
 import os
 import re
 import time
@@ -43,20 +45,20 @@ def reap(name, data_path, reap_path, reap_data, reap_name, log, log_info, tempdi
         log.info('periph data  %s %s found' % (log_info, name))
         with tempfile.TemporaryDirectory(dir=tempdir) as tempdir_path:
             metadata = {
-                    'filetype': scitran.data.medimg.gephysio.GEPhysio.filetype,
-                    'timezone': reap_data.nims_timezone,
-                    'header': {
-                        'group': reap_data.nims_group_id,
-                        'project': reap_data.nims_project,
-                        'session': reap_data.nims_session_id,
-                        'acquisition': reap_data.nims_acquisition_id,
-                        'timestamp': reap_data.nims_timestamp,
-                        },
-                    }
+                'filetype': scitran.data.medimg.gephysio.GEPhysio.filetype,
+                'timezone': reap_data.nims_timezone,
+                'header': {
+                    'group': reap_data.nims_group_id,
+                    'project': reap_data.nims_project,
+                    'session': reap_data.nims_session_id,
+                    'acquisition': reap_data.nims_acquisition_id,
+                    'timestamp': reap_data.nims_timestamp,
+                },
+            }
             physio_reap_path = os.path.join(tempdir_path, reap_name)
             os.mkdir(physio_reap_path)
             for pts, pfn in physio_tuples:
                 shutil.copy2(os.path.join(data_path, pfn), physio_reap_path)
-            util.create_archive(os.path.join(reap_path, reap_name+'.zip'), physio_reap_path, reap_name, metadata)
+            util.create_archive(os.path.join(reap_path, reap_name + '.zip'), physio_reap_path, reap_name, metadata)
     else:
         log.info('periph data  %s %s not found' % (log_info, name))

@@ -1,26 +1,28 @@
-# @author:  Gunnar Schaefer
-
-import logging
-logging.basicConfig(
-        format='%(asctime)s %(name)16.16s:%(levelname)4.4s %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
-        )
-log = logging.getLogger('reaper')
-logging.getLogger('requests').setLevel(logging.WARNING)
+"""SciTran Reaper base class"""
 
 import os
 import re
 import sys
 import json
-import pytz
 import time
-import tzlocal
+import logging
 import datetime
+
+import pytz
+import tzlocal
 import requests
 import requests_toolbelt
 
 from . import util
 from . import tempdir as tempfile
+
+logging.basicConfig(
+    format='%(asctime)s %(name)16.16s:%(levelname)4.4s %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
+log = logging.getLogger('reaper')
+
+logging.getLogger('requests').setLevel(logging.WARNING)
 
 SLEEPTIME = 60
 GRACEPERIOD = 86400
@@ -59,8 +61,10 @@ METADATA = [
 
 
 # monkey patching httplib to increase performance due to hard-coded block size
+# pylint: disable=wrong-import-order,wrong-import-position
 import httplib
 from array import array
+
 
 def fast_http_send(self, data):
     """Send `data' to the server."""
@@ -68,13 +72,14 @@ def fast_http_send(self, data):
         if self.auto_open:
             self.connect()
         else:
-            raise NotConnected()
+            raise httplib.NotConnected()
 
     if self.debuglevel > 0:
         print "send:", repr(data)
-    blocksize = 2**20 # was 8192 originally
-    if hasattr(data,'read') and not isinstance(data, array):
-        if self.debuglevel > 0: print "sendIng a read()able"
+    blocksize = 2**20  # was 8192 originally
+    if hasattr(data, 'read') and not isinstance(data, array):
+        if self.debuglevel > 0:
+            print "sendIng a read()able"
         datablock = data.read(blocksize)
         while datablock:
             self.sock.sendall(datablock)
@@ -88,7 +93,10 @@ httplib.HTTPSConnection.send = fast_http_send
 
 class ReaperItem(dict):
 
+    """ReaperItem class"""
+
     def __init__(self, state, **kwargs):
+        super(ReaperItem, self).__init__()
         self['reaped'] = False
         self['failures'] = 0
         self['lastseen'] = datetime.datetime.utcnow()
@@ -98,11 +106,15 @@ class ReaperItem(dict):
 
 class Reaper(object):
 
+    """Reaper class"""
+
     peripheral_data_reapers = {}
     destructive = False
 
     def __init__(self, id_, options):
         self.id_ = id_
+        self.opt = None
+        self.opt_value = None
         self.persistence_file = options.get('persistence_file')
         self.upload_uris = options.get('upload') or []
         self.peripheral_data = dict(options.get('peripheral') or [])
@@ -115,6 +127,18 @@ class Reaper(object):
         self.oneshot = options.get('oneshot') or False
         self.working_hours = options.get('workinghours')
 
+        if options['opt_in']:
+            self.opt = 'in'
+        elif options['opt_out']:
+            self.opt = 'out'
+        else:
+            self.opt = None
+            self.opt_field = self.opt_value = None
+        if self.opt is not None:
+            self.opt_field = options['opt_' + self.opt][0]
+            self.opt_value = '.*' + options['opt_' + self.opt][1].lower() + '.*'
+        self.id_field = options['id_field']
+
         self.state = {}
         self.alive = True
 
@@ -123,8 +147,8 @@ class Reaper(object):
         for uri in self.upload_uris:
             try:
                 self.upload_method(uri)
-            except ValueError as e:
-                log.error(str(e))
+            except ValueError as ex:
+                log.error(str(ex))
                 sys.exit(1)
 
         if self.timezone is None:
@@ -137,21 +161,27 @@ class Reaper(object):
                 sys.exit(1)
 
     def halt(self):
+        # pylint: disable=missing-docstring
         self.alive = False
 
     def state_str(self, _id, state):
+        # pylint: disable=missing-docstring
         pass
 
     def instrument_query(self):
+        # pylint: disable=missing-docstring
         pass
 
     def reap(self, _id, item, tempdir):
+        # pylint: disable=missing-docstring
         pass
 
     def destroy(self, item):
+        # pylint: disable=missing-docstring
         pass
 
     def run(self):
+        # pylint: disable=missing-docstring,too-many-branches,too-many-statements
         log.info('initializing ' + self.__class__.__name__ + '...')
         if self.oneshot or self.reap_existing:
             self.state = {}
@@ -159,29 +189,29 @@ class Reaper(object):
             self.state = self.persistent_state
             if self.state:
                 unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
-                log.info('loaded       %d items from persistence file, %d not reaped' % (len(self.state), unreaped_cnt))
+                log.info('loaded       %d items from persistence file, %d not reaped', len(self.state), unreaped_cnt)
             else:
                 query_start = datetime.datetime.utcnow()
                 self.state = self.instrument_query()
                 if self.state is not None:
-                    log.info('query time   %.1fs' % (datetime.datetime.utcnow() - query_start).total_seconds())
+                    log.info('query time   %.1fs', (datetime.datetime.utcnow() - query_start).total_seconds())
                     for item in self.state.itervalues():
                         item['reaped'] = True
                     self.persistent_state = self.state
-                    log.info('ignoring     %d items currently on instrument' % len(self.state))
+                    log.info('ignoring     %d items currently on instrument', len(self.state))
                 else:
                     log.warning('unable to retrieve instrument state')
-                log.info('sleeping     %.1fs' % self.sleeptime)
+                log.info('sleeping     %.1fs', self.sleeptime)
                 time.sleep(self.sleeptime)
         while self.alive:
             if not self.in_working_hours:
-                log.info('sleeping     %.0fs (off-duty)' % OFFDUTY_SLEEPTIME)
+                log.info('sleeping     %.0fs (off-duty)', OFFDUTY_SLEEPTIME)
                 time.sleep(OFFDUTY_SLEEPTIME)
                 continue
             query_start = datetime.datetime.utcnow()
             new_state = self.instrument_query()
             reap_start = datetime.datetime.utcnow()
-            log.debug('query time   %.1fs' % (reap_start - query_start).total_seconds())
+            log.debug('query time   %.1fs', (reap_start - query_start).total_seconds())
             if new_state is not None:
                 reap_queue = []
                 for _id, item in new_state.iteritems():
@@ -196,14 +226,14 @@ class Reaper(object):
                             log.info('monitoring   ' + self.state_str(_id, item['state']))
                     else:
                         log.info('discovered   ' + self.state_str(_id, item['state']))
-                for _id, item in self.state.iteritems(): # retain absent, but recently seen, items
+                for _id, item in self.state.iteritems():  # retain absent, but recently seen, items
                     if item['lastseen'] + self.graceperiod > reap_start:
                         if not item.get('retained', False):
                             item['retained'] = True
-                            log.info('retaining    %s' % _id)
+                            log.info('retaining    %s', _id)
                         new_state[_id] = item
                     else:
-                        log.info('purging      %s' % _id)
+                        log.info('purging      %s', _id)
                 self.persistent_state = self.state = new_state
                 reap_queue_len = len(reap_queue)
                 for i, _id_item in enumerate(reap_queue):
@@ -211,9 +241,9 @@ class Reaper(object):
                         log.info('aborting     reap-run (off-duty)')
                         break
                     _id, item = _id_item
-                    log.info('reap queue   item %d of %d' % (i+1, reap_queue_len))
+                    log.info('reap queue   item %d of %d', i + 1, reap_queue_len)
                     with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir:
-                        item['reaped'], metadata_map = self.reap(_id, item, tempdir) # returns True, False, None
+                        item['reaped'], metadata_map = self.reap(_id, item, tempdir)  # returns True, False, None
                         if item['reaped']:
                             item['failures'] = 0
                             if self.upload(metadata_map, tempdir):
@@ -221,28 +251,29 @@ class Reaper(object):
                                     self.destroy(item)
                             else:
                                 item['reaped'] = False
-                        elif item['reaped'] is None: # mark skipped or discarded items as reaped
+                        elif item['reaped'] is None:  # mark skipped or discarded items as reaped
                             item['reaped'] = True
                         else:
                             item['failures'] += 1
-                            log.warning('failure      %s (%d failures)' % (_id, item['failures']))
+                            log.warning('failure      %s (%d failures)', _id, item['failures'])
                             if item['failures'] > 9:
                                 item['reaped'] = True
                                 item['abandoned'] = True
                                 log.warning('abandoning   ' + self.state_str(_id, item['state']))
                     self.persistent_state = self.state
                 unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
-                log.info('monitoring   %d items, %d not reaped' % (len(self.state), unreaped_cnt))
+                log.info('monitoring   %d items, %d not reaped', len(self.state), unreaped_cnt)
                 if self.oneshot and unreaped_cnt == 0:
                     break
             else:
                 log.warning('unable to retrieve instrument state')
             sleeptime = self.sleeptime - (datetime.datetime.utcnow() - reap_start).total_seconds()
             if sleeptime > 0:
-                log.info('sleeping     %.1fs' % sleeptime)
+                log.info('sleeping     %.1fs', sleeptime)
                 time.sleep(sleeptime)
 
     def metadata(self, obj):
+        # pylint: disable=missing-docstring
         metadata = {
             'session': {'timezone': self.timezone},
             'acquisition': {'timezone': self.timezone},
@@ -252,11 +283,12 @@ class Reaper(object):
             if value is not None:
                 metadata.setdefault(md_group, {})
                 metadata[md_group][md_field] = value
-        metadata['session']['subject'] = metadata.pop('subject', {})    # FIXME HACK
-        metadata['acquisition']['files'] = [metadata.pop('file', {})]   # FIXME HACK
+        metadata['session']['subject'] = metadata.pop('subject', {})    # pylint disable=fixme; FIXME HACK
+        metadata['acquisition']['files'] = [metadata.pop('file', {})]   # pylint disable=fixme; FIXME HACK
         return metadata
 
     def is_desired_item(self, opt):
+        # pylint: disable=missing-docstring
         if self.opt is None:
             return True
         if self.opt == 'in' and opt is not None and not re.match(self.opt_value, opt.lower()):
@@ -267,10 +299,10 @@ class Reaper(object):
 
     @property
     def in_working_hours(self):
+        # pylint: disable=missing-docstring
         if not self.working_hours:
             return True
         local_now = datetime.datetime.now().time()
-        off_duty = False
         if self.working_hours[0] < self.working_hours[1] and not self.working_hours[0] < local_now < self.working_hours[1]:
             return False
         if self.working_hours[0] > self.working_hours[1] and self.working_hours[1] < local_now < self.working_hours[0]:
@@ -279,10 +311,12 @@ class Reaper(object):
 
     @property
     def persistent_state(self):
+        # pylint: disable=missing-docstring
         try:
             with open(self.persistence_file, 'r') as persistence_file:
                 state = json.load(persistence_file, object_hook=util.datetime_decoder)
-            # TODO: add some consistency checks here and possibly drop state
+            # TODO add some consistency checks here and possibly drop state if corrupt
+        # pylint: disable=bare-except
         except:
             log.warning('persistence file not found')
             state = {}
@@ -290,6 +324,7 @@ class Reaper(object):
 
     @persistent_state.setter
     def persistent_state(self, state):
+        # pylint: disable=missing-docstring
         log.debug('updating persistence file')
         temp_persistence_file = '/.'.join(os.path.split(self.persistence_file))
         with open(temp_persistence_file, 'w') as persistence_file:
@@ -298,26 +333,28 @@ class Reaper(object):
         os.rename(temp_persistence_file, self.persistence_file)
 
     def reap_peripheral_data(self, reap_path, reap_data, reap_name, log_info):
+        # pylint: disable=missing-docstring
         for pdn, pdp in self.peripheral_data.iteritems():
             if pdn in self.peripheral_data_reapers:
                 # FIXME
                 # import self.peripheral_data_reapers[pdn]
                 # run self.peripheral_data_reapers[pdn].reap(...)
-                self.peripheral_data_reapers[pdn](pdn, pdp, reap_path, reap_data, reap_name+'_'+pdn, log, log_info, self.tempdir)
+                self.peripheral_data_reapers[pdn](pdn, pdp, reap_path, reap_data, reap_name + '_' + pdn, log, log_info, self.tempdir)
             else:
-                log.warning('periph data %s %s does not exist' % (log_info, pdn))
+                log.warning('periph data %s %s does not exist', log_info, pdn)
 
     def upload(self, metadata_map, path):
+        # pylint: disable=missing-docstring
         for filename, metadata in metadata_map.iteritems():
             filepath = os.path.join(path, filename)
             for uri in self.upload_uris:
-                log.info('uploading    %s [%s] to %s' % (filename, util.hrsize(os.path.getsize(filepath)), uri))
+                log.info('uploading    %s [%s] to %s', filename, util.hrsize(os.path.getsize(filepath)), uri)
                 start = datetime.datetime.utcnow()
                 success = self.upload_method(uri)(filename, filepath, metadata, uri)
                 upload_duration = (datetime.datetime.utcnow() - start).total_seconds()
                 if not success:
                     return False
-                log.info('uploaded     %s [%s/s]' % (filename, util.hrsize(os.path.getsize(filepath)/upload_duration)))
+                log.info('uploaded     %s [%s/s]', filename, util.hrsize(os.path.getsize(filepath) / upload_duration))
         return True
 
     def upload_method(self, uri):
@@ -332,6 +369,7 @@ class Reaper(object):
             raise ValueError('bad upload URI "%s"' % uri)
 
     def http_upload(self, filename, filepath, metadata, uri):
+        # pylint: disable=missing-docstring
         # TODO dedup this with util.upload_file()
         headers = {
             'X-SciTran-Method': 'reaper',
@@ -342,29 +380,32 @@ class Reaper(object):
             headers['X-SciTran-Auth'] = secret
         with open(filepath, 'rb') as fd:
             try:
-                metadata['acquisition']['files'][0]['name'] = filename # FIXME HACK
+                metadata['acquisition']['files'][0]['name'] = filename  # pylint disable=fixme; FIXME HACK
                 metadata_json = json.dumps(metadata, default=util.metadata_encoder)
                 mpe = requests_toolbelt.multipart.encoder.MultipartEncoder(fields={'metadata': metadata_json, 'file': (filename, fd)})
                 headers['Content-Type'] = mpe.content_type
                 r = requests.post(uri, data=mpe, headers=headers, verify=not self.insecure)
-            except requests.exceptions.ConnectionError as e:
-                log.error('error        %s: %s' % (filename, e))
+            except requests.exceptions.ConnectionError as ex:
+                log.error('error        %s: %s', filename, ex)
                 return False
             else:
                 if r.ok:
                     return True
                 else:
-                    log.warning('failure      %s: %s %s' % (filename, r.status_code, r.reason))
+                    log.warning('failure      %s: %s %s', filename, r.status_code, r.reason)
                     return False
 
     def s3_upload(self, filename, filepath, metadata, digest, uri):
+        # pylint: disable=missing-docstring
         pass
 
     def file_copy(self, filename, filepath, metadata, digest, uri):
+        # pylint: disable=missing-docstring
         pass
 
 
 def main(cls, arg_parser_update=None):
+    # pylint: disable=missing-docstring
     import signal
     import argparse
 
@@ -382,6 +423,11 @@ def main(cls, arg_parser_update=None):
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-k', '--workinghours', nargs=2, type=int, help='working hours in 24hr time [0 24]')
 
+    arg_parser.add_argument('--id-field', default='PatientID', help='DICOM field for id info [PatientID]')
+    opt_group = arg_parser.add_mutually_exclusive_group()
+    opt_group.add_argument('--opt-in', nargs=2, help='opt-in field and value')
+    opt_group.add_argument('--opt-out', nargs=2, help='opt-out field and value')
+
     if arg_parser_update is not None:
         arg_parser = arg_parser_update(arg_parser)
     args = arg_parser.parse_args()
@@ -396,13 +442,14 @@ def main(cls, arg_parser_update=None):
         requests.packages.urllib3.disable_warnings()
 
     if args.workinghours:
-        args.workinghours = map(datetime.time, args.workinghours)
+        args.workinghours = [datetime.time(i) for i in args.workinghours]
 
     log.debug(args)
 
     reaper = cls(vars(args))
 
     def term_handler(signum, stack):
+        # pylint: disable=missing-docstring,unused-argument
         reaper.halt()
         log.warning('received SIGTERM - shutting down...')
     signal.signal(signal.SIGTERM, term_handler)
