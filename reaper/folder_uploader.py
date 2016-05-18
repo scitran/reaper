@@ -22,7 +22,8 @@ logging.getLogger('requests').setLevel(logging.WARNING) # silence Requests libra
 OAUTH_TOKEN_VAR = 'SCITRAN_REAPER_OAUTH_TOKEN'
 
 with open(os.path.join(os.path.dirname(__file__), 'types.json')) as fd:
-    KNOWN_FILETYPES = json.load(fd)
+    type_map = json.load(fd)
+KNOWN_FILETYPES = {ext: filetype for filetype, extensions in type_map.iteritems() for ext in extensions}
 
 
 def guess_filetype(path):
@@ -32,6 +33,8 @@ def guess_filetype(path):
         filetype = KNOWN_FILETYPES.get(ext.lower())
         if filetype:
             break
+    else:
+        filetype = None
     return filetype
 
 
@@ -52,7 +55,7 @@ def scan_folder(path):
                 sys.exit(1)
         elif level_cnt == 2:    # project
             sessions = []
-            files = [{'path': os.path.join(dirpath, fn), 'type': None} for fn in filenames]
+            files = [{'path': os.path.join(dirpath, fn)} for fn in filenames]
             project = {'group': levels[0], 'label': levels[1], 'sessions': sessions, 'files': files}
             projects.append(project)
         elif level_cnt == 3:    # subject
@@ -61,11 +64,11 @@ def scan_folder(path):
                 sys.exit(1)
         elif level_cnt == 4:    # session
             acquisitions = []
-            files = [{'path': os.path.join(dirpath, fn), 'type': None} for fn in filenames]
+            files = [{'path': os.path.join(dirpath, fn)} for fn in filenames]
             session = {'label': levels[3], 'subject': {'code': levels[2]}, 'acquisitions': acquisitions, 'files': files}
             sessions.append(session)
         elif level_cnt == 5:    # acquisition
-            files = [{'path': os.path.join(dirpath, fn), 'type': None} for fn in filenames]
+            files = [{'path': os.path.join(dirpath, fn)} for fn in filenames]
             packfiles = [{'path': os.path.join(dirpath, dn), 'type': dn} for dn in dirnames]
             acquisition = {'label': levels[4], 'files': files, 'packfiles': packfiles}
             acquisitions.append(acquisition)
@@ -93,7 +96,9 @@ def print_upload_summary(projects):
 
 
 def file_metadata(f, **kwargs):
-    md = {'name': os.path.basename(f['path']), 'type': f['type']}
+    md = {'name': os.path.basename(f['path'])}
+    if f['type'] is not None:
+        md['type'] = f['type']
     md.update(kwargs)
     return md
 

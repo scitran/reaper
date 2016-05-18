@@ -1,49 +1,21 @@
 {
-    ".pdf":             "pdf",
-    ".txt":             "text",
+    "archive":          [ ".zip", ".tbz2", ".tar.gz", ".tbz", ".tar.bz2", ".tgz", ".tar", ".txz", ".tar.xz" ],
+    "document":         [ ".docx", ".doc" ],
+    "image":            [ ".jpg", ".tif", ".jpeg", ".gif", ".bmp", ".png", ".tiff" ],
+    "pdf":              [ ".pdf" ],
+    "presentation":     [ ".ppt", ".pptx" ],
+    "source code":      [ ".c", ".py", ".cpp", ".js", ".m", ".json", ".java" ],
+    "spredsheet":       [ ".xls", ".xlsx" ],
+    "tabular data":     [ ".csv.gz", ".csv" ],
+    "text":             [ ".txt" ],
+    "video":            [ ".mpeg", ".mpg", ".mov", ".mp4" ],
 
-    ".csv":             "tabular data",
-    ".csv.gz":          "tabular data",
+    "qa":               [ ".qa.png", ".qa.json" ],
 
-    ".bmp":             "image",
-    ".gif":             "image",
-    ".jpeg":            "image",
-    ".jpg":             "image",
-    ".png":             "image",
-    ".tif":             "image",
-    ".tiff":            "image",
-
-    ".mov":             "video",
-    ".mp4":             "video",
-    ".mpeg":            "video",
-    ".mpg":             "video",
-
-    ".doc":             "document",
-    ".docx":            "document",
-    ".ppt":             "presentation",
-    ".pptx":            "presentation",
-    ".xls":             "spredsheet",
-    ".xlsx":            "spredsheet",
-
-    ".c":               "source code",
-    ".cpp":             "source code",
-    ".java":            "source code",
-    ".js":              "source code",
-    ".json":            "source code",
-    ".m":               "source code",
-    ".py":              "source code",
-
-    ".qa.json":         "qa",
-    ".qa.png":          "qa",
-
-    ".7":               "pfile",
-    ".7.gz":            "pfile",
-    ".bval":            "bval",
-    ".bvec":            "bvec",
-    ".dcm":             "dicom",
-    ".nii":             "nifti",
-    ".nii.gz":          "nifti",
-    ".nii.gz":          "nifti",
-
-    ".gephysio.zip":    "gephysio"
+    "bval":             [ ".bval" ],
+    "bvec":             [ ".bvec" ],
+    "dicom":            [ ".dcm" ],
+    "gephysio":         [ ".gephysio.zip" ],
+    "nifti":            [ ".nii.gz", ".nii" ],
+    "pfile":            [ ".7.gz", ".7" ]
 }
