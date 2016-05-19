@@ -164,56 +164,45 @@ class _RawPFile(object):
 
         version_bytes = fd.read(4)
 
-        fd.seek(34); logo = (struct.unpack("10s", fd.read(struct.calcsize("10s")))[0]).split('\0', 1)[0]
+        logo = self.unpacked_bytes(fd, 34, '10s', True)
         if logo != 'GE_MED_NMR' and logo != 'INVALIDNMR':
             raise _RawPFileError(fd.name + ' is not a valid PFile')
 
-        fd.seek(16); scan_date = str(struct.unpack("10s", fd.read(struct.calcsize("10s")))[0])
-        fd.seek(26); scan_time = str(struct.unpack("8s", fd.read(struct.calcsize("8s")))[0])
+        scan_date = self.unpacked_bytes(fd, 16, '10s')
+        scan_time = self.unpacked_bytes(fd, 26, '8s')
 
-        if version_bytes == '\x00\x00\xc0A':    # v24
-            fd.seek(143516); self.exam_no = str(struct.unpack("H", fd.read(struct.calcsize("H")))[0])
-            fd.seek(144248); self.exam_uid = self.unpack_uid(struct.unpack("32s", fd.read(struct.calcsize("32s")))[0])
-            fd.seek(144409); self.patient_id = (struct.unpack("65s", fd.read(struct.calcsize("65s")))[0]).split('\0', 1)[0]
-            fd.seek(144474); self.accession_no = (struct.unpack("17s", fd.read(struct.calcsize("17s")))[0]).split('\0', 1)[0]
-            fd.seek(145622); self.series_no = struct.unpack("h", fd.read(struct.calcsize("h")))[0]
-            fd.seek(145762); self.series_desc = (struct.unpack("65s", fd.read(struct.calcsize("65s")))[0]).split('\0', 1)[0]
-            fd.seek(145875); self.series_uid = self.unpack_uid(struct.unpack("32s", fd.read(struct.calcsize("32s")))[0])
-            fd.seek(148388); im_datetime = struct.unpack("i", fd.read(struct.calcsize("i")))[0]
-            fd.seek(148834); self.acq_no = struct.unpack("h", fd.read(struct.calcsize("h")))[0]
+        if version_bytes in ('\x00\x00\xc0A', 'V\x0e\xa0A'):    # v24 or v23
+            self.exam_no = str(self.unpacked_bytes(fd, 143516, 'H'))
+            self.exam_uid = self.unpack_uid(self.unpacked_bytes(fd, 144248, '32s'))
+            self.patient_id = self.unpacked_bytes(fd, 144409, '65s', True)
+            self.accession_no = self.unpacked_bytes(fd, 144474, '17s', True)
+            self.series_no = self.unpacked_bytes(fd, 145622, 'h')
+            self.series_desc = self.unpacked_bytes(fd, 145762, '65s', True)
+            self.series_uid = self.unpack_uid(self.unpacked_bytes(fd, 145875, '32s'))
+            im_datetime = self.unpacked_bytes(fd, 148388, 'i')
+            self.acq_no = self.unpacked_bytes(fd, 148834, 'h')
 
-        elif version_bytes == 'V\x0e\xa0A':     # v23
-            fd.seek(143516); self.exam_no = str(struct.unpack("H", fd.read(struct.calcsize("H")))[0])
-            fd.seek(144248); self.exam_uid = self.unpack_uid(struct.unpack("32s", fd.read(struct.calcsize("32s")))[0])
-            fd.seek(144409); self.patient_id = (struct.unpack("65s", fd.read(struct.calcsize("65s")))[0]).split('\0', 1)[0]
-            fd.seek(144474); self.accession_no = (struct.unpack("17s", fd.read(struct.calcsize("17s")))[0]).split('\0', 1)[0]
-            fd.seek(145622); self.series_no = struct.unpack("h", fd.read(struct.calcsize("h")))[0]
-            fd.seek(145762); self.series_desc = (struct.unpack("65s", fd.read(struct.calcsize("65s")))[0]).split('\0', 1)[0]
-            fd.seek(145875); self.series_uid = self.unpack_uid(struct.unpack("32s", fd.read(struct.calcsize("32s")))[0])
-            fd.seek(148388); im_datetime = struct.unpack("i", fd.read(struct.calcsize("i")))[0]
-            fd.seek(148834); self.acq_no = struct.unpack("h", fd.read(struct.calcsize("h")))[0]
+        elif version_bytes == 'J\x0c\xa0A':                     # v22
+            self.exam_no = str(self.unpacked_bytes(fd, 143516, 'H'))
+            self.exam_uid = self.unpack_uid(self.unpacked_bytes(fd, 144240, '32s'))
+            self.patient_id = self.unpacked_bytes(fd, 144401, '65s', True)
+            self.accession_no = self.unpacked_bytes(fd, 144466, '17s', True)
+            self.series_no = self.unpacked_bytes(fd, 145622, 'h')
+            self.series_desc = self.unpacked_bytes(fd, 145762, '65s', True)
+            self.series_uid = self.unpack_uid(self.unpacked_bytes(fd, 145875, '32s'))
+            im_datetime = self.unpacked_bytes(fd, 148388, 'i')
+            self.acq_no = self.unpacked_bytes(fd, 148834, 'h')
 
-        elif version_bytes == 'J\x0c\xa0A':     # v22
-            fd.seek(143516); self.exam_no = str(struct.unpack("H", fd.read(struct.calcsize("H")))[0])
-            fd.seek(144240); self.exam_uid = self.unpack_uid(struct.unpack("32s", fd.read(struct.calcsize("32s")))[0])
-            fd.seek(144401); self.patient_id = (struct.unpack("65s", fd.read(struct.calcsize("65s")))[0]).split('\0', 1)[0]
-            fd.seek(144466); self.accession_no = (struct.unpack("17s", fd.read(struct.calcsize("17s")))[0]).split('\0', 1)[0]
-            fd.seek(145622); self.series_no = struct.unpack("h", fd.read(struct.calcsize("h")))[0]
-            fd.seek(145762); self.series_desc = (struct.unpack("65s", fd.read(struct.calcsize("65s")))[0]).split('\0', 1)[0]
-            fd.seek(145875); self.series_uid = self.unpack_uid(struct.unpack("32s", fd.read(struct.calcsize("32s")))[0])
-            fd.seek(148388); im_datetime = struct.unpack("i", fd.read(struct.calcsize("i")))[0]
-            fd.seek(148834); self.acq_no = struct.unpack("h", fd.read(struct.calcsize("h")))[0]
-
-        elif version_bytes == '\x00\x000A':     # v12
-            fd.seek(61576); self.exam_no = str(struct.unpack("H", fd.read(struct.calcsize("H")))[0])
-            fd.seek(61966); self.exam_uid = self.unpack_uid(struct.unpack("32s", fd.read(struct.calcsize("32s")))[0])
-            fd.seek(62127); self.patient_id = (struct.unpack("65s", fd.read(struct.calcsize("65s")))[0]).split('\0', 1)[0]
-            fd.seek(62192); self.accession_no = (struct.unpack("17s", fd.read(struct.calcsize("17s")))[0]).split('\0', 1)[0]
-            fd.seek(62710); self.series_no = struct.unpack("h", fd.read(struct.calcsize("h")))[0]
-            fd.seek(62786); self.series_desc = (struct.unpack("65s", fd.read(struct.calcsize("65s")))[0]).split('\0', 1)[0]
-            fd.seek(62899); self.series_uid = self.unpack_uid(struct.unpack("32s", fd.read(struct.calcsize("32s")))[0])
-            fd.seek(65016); im_datetime = struct.unpack("i", fd.read(struct.calcsize("i")))[0]
-            fd.seek(65328); self.acq_no = struct.unpack("h", fd.read(struct.calcsize("h")))[0]
+        elif version_bytes == '\x00\x000A':                     # v12
+            self.exam_no = str(self.unpacked_bytes(fd, 61576, 'H'))
+            self.exam_uid = self.unpack_uid(self.unpacked_bytes(fd, 61966, '32s'))
+            self.patient_id = self.unpacked_bytes(fd, 62127, '65s', True)
+            self.accession_no = self.unpacked_bytes(fd, 62192, '17s', True)
+            self.series_no = self.unpacked_bytes(fd, 62710, 'h')
+            self.series_desc = self.unpacked_bytes(fd, 62786, '65s', True)
+            self.series_uid = self.unpack_uid(self.unpacked_bytes(fd, 62899, '32s'))
+            im_datetime = self.unpacked_bytes(fd, 65016, 'i')
+            self.acq_no = self.unpacked_bytes(fd, 65328, 'h')
 
         else:
             raise _RawPFileError(fd.name + ' is not a valid PFile or of an unsupported version')
@@ -226,6 +215,15 @@ class _RawPFile(object):
             self.timestamp = datetime.datetime(year + 1900, month, day, hour, minute)  # GE's epoch begins in 1900
 
         fd.close()
+
+    @staticmethod
+    def unpacked_bytes(fd, offset, fmt, split=False):
+        # pylint: disable=missing-docstring
+        fd.seek(offset)
+        r = struct.unpack(fmt, fd.read(struct.calcsize(fmt)))[0]
+        if split:
+            r = r.split('\0', 1)[0]
+        return r
 
     @staticmethod
     def unpack_uid(uid):
