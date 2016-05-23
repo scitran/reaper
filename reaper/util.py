@@ -5,6 +5,7 @@ import json
 import zipfile
 import datetime
 
+import pytz
 import dateutil.parser
 import requests_toolbelt
 
@@ -25,6 +26,8 @@ def hrsize(size):
 def metadata_encoder(obj):
     # pylint: disable=missing-docstring
     if isinstance(obj, datetime.datetime):
+        if obj.tzinfo is None:
+            obj = pytz.timezone('UTC').localize(obj)
         return obj.isoformat()
     elif isinstance(obj, datetime.tzinfo):
         return obj.zone
