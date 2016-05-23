@@ -56,7 +56,7 @@ class DicomNetReaper(reaper.Reaper):
 
     """DicomNetReaper class"""
 
-    query_params = {
+    query_params = {  # FIXME dedup with scu.SCUQuery
         'StudyInstanceUID': '',
         'SeriesInstanceUID': '',
         'StudyID': '',

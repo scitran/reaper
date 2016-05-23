@@ -25,10 +25,33 @@ RESPONSE_RE = re.compile(
     r'I: # Used TransferSyntax: (?P<txx>.+)\n'
     r'(?P<dicom_cvs>(I: \(.+\) .+\n){2,})'
 )
+
 DICOM_CV_RE = re.compile(
     r'.*\((?P<idx_0>[0-9a-f]{4}),(?P<idx_1>[0-9a-f]{4})\) '
     r'(?P<type>\w{2}) (?P<value>.+)#[ ]*(?P<length>\d+),[ ]*(?P<n_elems>\d+) (?P<label>\w+)\n'
 )
+
+QUERY_TEMPLATE = {
+    'StudyInstanceUID': '',
+    'SeriesInstanceUID': '',
+    'StudyID': '',
+    'SeriesNumber': '',
+    'SeriesDate': '',
+    'SeriesTime': '',
+    'NumberOfSeriesRelatedInstances': '',
+    'PatientID': '',
+    'OperatorsName': '',
+    'AccessionNumber': '',
+    'AdmissionID': '',
+    'PatientComments': '',
+}
+
+
+class SCUQuery(dict):
+
+    def __init__(self, **kwargs):
+        super(SCUQuery, self).__init__(QUERY_TEMPLATE)
+        self.update(**kwargs)
 
 
 class SCU(object):
