@@ -49,6 +49,8 @@ QUERY_TEMPLATE = {
 
 class SCUQuery(dict):
 
+    """SCUQuery class"""
+
     def __init__(self, **kwargs):
         super(SCUQuery, self).__init__(QUERY_TEMPLATE)
         self.update(**kwargs)

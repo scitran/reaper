@@ -56,21 +56,6 @@ class DicomNetReaper(reaper.Reaper):
 
     """DicomNetReaper class"""
 
-    query_params = {  # FIXME dedup with scu.SCUQuery
-        'StudyInstanceUID': '',
-        'SeriesInstanceUID': '',
-        'StudyID': '',
-        'SeriesNumber': '',
-        'SeriesDate': '',
-        'SeriesTime': '',
-        'NumberOfSeriesRelatedInstances': '',
-        'PatientID': '',
-        'OperatorsName': '',
-        'AccessionNumber': '',
-        'AdmissionID': '',
-        'PatientComments': '',
-    }
-
     def __init__(self, options):
         self.scu = scu.SCU(options.get('host'), options.get('port'), options.get('return_port'), options.get('aet'), options.get('aec'))
         super(DicomNetReaper, self).__init__(self.scu.aec, options)
@@ -82,7 +67,7 @@ class DicomNetReaper(reaper.Reaper):
 
     def instrument_query(self):
         i_state = {}
-        scu_resp = self.scu.find(scu.SeriesQuery(**self.query_params))
+        scu_resp = self.scu.find(scu.SeriesQuery(**scu.SCUQuery()))
         for r in scu_resp:
             state = {
                 'images': int(r['NumberOfSeriesRelatedInstances']),
