@@ -16,11 +16,7 @@ import requests_toolbelt
 from . import util
 from . import tempdir as tempfile
 
-logging.basicConfig(
-    format='%(asctime)s %(name)16.16s:%(levelname)4.4s %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-)
-log = logging.getLogger('reaper')
+log = logging.getLogger(__name__)
 
 logging.getLogger('requests').setLevel(logging.WARNING)
 
@@ -312,25 +308,13 @@ class Reaper(object):
     @property
     def persistent_state(self):
         # pylint: disable=missing-docstring
-        try:
-            with open(self.persistence_file, 'r') as persistence_file:
-                state = json.load(persistence_file, object_hook=util.datetime_decoder)
-            # TODO add some consistency checks here and possibly drop state if corrupt
-        # pylint: disable=bare-except
-        except:
-            log.warning('persistence file not found')
-            state = {}
-        return state
+        return util.read_state_file(self.persistence_file)
 
     @persistent_state.setter
     def persistent_state(self, state):
         # pylint: disable=missing-docstring
         log.debug('updating persistence file')
-        temp_persistence_file = '/.'.join(os.path.split(self.persistence_file))
-        with open(temp_persistence_file, 'w') as persistence_file:
-            json.dump(state, persistence_file, indent=4, separators=(',', ': '), default=util.datetime_encoder)
-            persistence_file.write('\n')
-        os.rename(temp_persistence_file, self.persistence_file)
+        util.write_state_file(self.persistence_file, state)
 
     def reap_peripheral_data(self, reap_path, reap_data, reap_name, log_info):
         # pylint: disable=missing-docstring

@@ -2,12 +2,20 @@
 
 import os
 import json
+import logging
 import zipfile
 import datetime
 
 import pytz
 import dateutil.parser
 import requests_toolbelt
+
+logging.basicConfig(
+    format='%(asctime)s %(name)16.16s:%(levelname)4.4s %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    level=logging.INFO,
+)
+log = logging.getLogger(__name__)
 
 
 def hrsize(size):
@@ -46,6 +54,30 @@ def datetime_decoder(dct):
     if "$isotimestamp" in dct:
         return dateutil.parser.parse(dct['$isotimestamp'])
     return dct
+
+
+def read_state_file(path):
+    # pylint: disable=missing-docstring
+    try:
+        with open(path, 'r') as fd:
+            state = json.load(fd, object_hook=datetime_decoder)
+        # TODO add some consistency checks here and possibly drop state if corrupt
+    except IOError:
+        log.warning('state file not found')
+        state = {}
+    except ValueError:
+        log.warning('state file corrupt')
+        state = {}
+    return state
+
+
+def write_state_file(path, state):
+    # pylint: disable=missing-docstring
+    temp_path = '/.'.join(os.path.split(path))
+    with open(temp_path, 'w') as fd:
+        json.dump(state, fd, indent=4, separators=(',', ': '), default=datetime_encoder)
+        fd.write('\n')
+    os.rename(temp_path, path)
 
 
 def create_archive(content, arcname, metadata, outdir=None):

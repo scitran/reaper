@@ -11,12 +11,8 @@ import argparse
 import reaper.scu
 import reaper.util
 
-logging.basicConfig(
-    format='%(asctime)s %(levelname)8.8s %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    level=logging.INFO,
-)
-log = logging.getLogger()
+log = logging.getLogger('series_finder')
+log.info('blah')
 
 
 arg_parser = argparse.ArgumentParser()
@@ -60,11 +56,7 @@ if args.file:
             success_cnt += 1
         except KeyError as ex:
             fail_cnt += 1
-    temp_file = '/.'.join(os.path.split(args.file))
-    with open(temp_file, 'w') as fd:
-        json.dump(state, fd, indent=4, separators=(',', ': '), default=reaper.util.datetime_encoder)
-        fd.write('\n')
-    os.rename(temp_file, args.file)
+    util.write_state_file(args.file, state)
     log.info('Successfully updated %d records', success_cnt)
     if fail_cnt:
         log.error('Failed to update %d records', fail_cnt)
