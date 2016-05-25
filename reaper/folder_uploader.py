@@ -5,7 +5,6 @@ import sys
 import json
 import logging
 import argparse
-import requests
 
 from . import util
 from . import tempdir as tempfile
@@ -15,8 +14,6 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S',
 )
 log = logging.getLogger()
-
-logging.getLogger('requests').setLevel(logging.WARNING)
 
 OAUTH_TOKEN_VAR = 'SCITRAN_REAPER_OAUTH_TOKEN'
 
@@ -107,58 +104,54 @@ def file_metadata(f, **kwargs):
     return md
 
 
-def upload(projects, api_url, http_headers, http_params, insecure):
+def upload(projects, url, request_session):
     # pylint: disable=missing-docstring
-    with requests.Session() as rs:
-        rs.verify = not insecure
-        rs.headers = http_headers
-        rs.params = http_params
-        upload_url = api_url + '/upload/label'
-        action_str = 'Upserting %sfiles to %s'
-        file_str = '  %s %-10.10s: %s'
+    upload_url = url + '/upload/label'
+    action_str = 'Upserting %sfiles to %s'
+    file_str = '  %s %-10.10s: %s'
 
-        for project in projects:
-            group = project['group']
-            p_label = group + ' > ' + project['label']
-            metadata = {'group': {'_id': group}, 'project': {'label': project['label']}}
-            log.info('Upserting group ' + group)
-            r = rs.post(api_url + '/groups', json={'_id': group.lower(), 'name': group})
-            if not r.ok:
-                log.error('Failed to upsert group ' + group + '. Trying to proceed anyway.')
-            log.info(action_str, '', p_label)
-            for f in project['files']:
+    for project in projects:
+        group = project['group']
+        p_label = group + ' > ' + project['label']
+        metadata = {'group': {'_id': group}, 'project': {'label': project['label']}}
+        log.info('Upserting group ' + group)
+        r = request_session.post(url + '/groups', json={'_id': group.lower(), 'name': group})
+        if not r.ok:
+            log.error('Failed to upsert group ' + group + '. Trying to proceed anyway.')
+        log.info(action_str, '', p_label)
+        for f in project['files']:
+            log.info(file_str, 'Uploading', f['type'], f['path'])
+            metadata['project']['files'] = [file_metadata(f)]
+            util.http_upload(request_session, upload_url, f['path'], metadata)
+        metadata['project'].pop('files', [])
+        for session in project['sessions']:
+            s_label = p_label + ' > ' + session['label']
+            log.info(action_str, '', s_label)
+            metadata.update({'session': {'label': session['label'], 'subject': session['subject']}})
+            for f in session['files']:
                 log.info(file_str, 'Uploading', f['type'], f['path'])
-                metadata['project']['files'] = [file_metadata(f)]
-                util.upload_file(rs, upload_url, f['path'], metadata)
-            metadata['project'].pop('files', [])
-            for session in project['sessions']:
-                s_label = p_label + ' > ' + session['label']
-                log.info(action_str, '', s_label)
-                metadata.update({'session': {'label': session['label'], 'subject': session['subject']}})
-                for f in session['files']:
+                metadata['session']['files'] = [file_metadata(f)]
+                util.http_upload(request_session, upload_url, f['path'], metadata)
+            metadata['session'].pop('files', [])
+            for acquisition in session['acquisitions']:
+                a_label = s_label + ' > ' + acquisition['label']
+                log.info(action_str, '', a_label)
+                metadata.update({'acquisition': {'label': acquisition['label']}})
+                for f in acquisition['files']:
                     log.info(file_str, 'Uploading', f['type'], f['path'])
-                    metadata['session']['files'] = [file_metadata(f)]
-                    util.upload_file(rs, upload_url, f['path'], metadata)
-                metadata['session'].pop('files', [])
-                for acquisition in session['acquisitions']:
-                    a_label = s_label + ' > ' + acquisition['label']
-                    log.info(action_str, '', a_label)
-                    metadata.update({'acquisition': {'label': acquisition['label']}})
-                    for f in acquisition['files']:
+                    metadata['acquisition']['files'] = [file_metadata(f)]
+                    util.http_upload(request_session, upload_url, f['path'], metadata)
+                metadata['acquisition'].pop('files', [])
+                log.info(action_str, 'pack-', a_label)
+                for f in acquisition['packfiles']:
+                    with tempfile.TemporaryDirectory() as tempdir:
+                        log.info(file_str, 'Packaging', f['type'], f['path'])
+                        arcname = acquisition['label'] + '_' + f['type']
+                        fp = util.create_archive(f['path'], arcname, metadata, tempdir)
+                        metadata['acquisition']['files'] = [file_metadata(f, name=os.path.basename(fp))]
                         log.info(file_str, 'Uploading', f['type'], f['path'])
-                        metadata['acquisition']['files'] = [file_metadata(f)]
-                        util.upload_file(rs, upload_url, f['path'], metadata)
-                    metadata['acquisition'].pop('files', [])
-                    log.info(action_str, 'pack-', a_label)
-                    for f in acquisition['packfiles']:
-                        with tempfile.TemporaryDirectory() as tempdir:
-                            log.info(file_str, 'Packaging', f['type'], f['path'])
-                            arcname = acquisition['label'] + '_' + f['type']
-                            fp = util.create_archive(f['path'], arcname, metadata, tempdir)
-                            metadata['acquisition']['files'] = [file_metadata(f, name=os.path.basename(fp))]
-                            log.info(file_str, 'Uploading', f['type'], f['path'])
-                            util.upload_file(rs, upload_url, fp, metadata)
-                    metadata['acquisition'].pop('files', [])
+                        util.http_upload(request_session, upload_url, fp, metadata)
+                metadata['acquisition'].pop('files', [])
 
 
 def main():
@@ -176,31 +169,16 @@ def main():
     arg_parser.add_argument('--root', action='store_true', help='send API requests as site admin')
 
     args = arg_parser.parse_args()
-
-    log.setLevel(getattr(logging, args.loglevel.upper()))
-
-    if args.insecure:
-        requests.packages.urllib3.disable_warnings()
-
     args.url = args.url.strip('/')
 
-    http_headers = {
-        'X-SciTran-Method': 'importer',
-        'X-SciTran-Name': 'Admin Import',
-    }
-    if args.secret:
-        http_headers['X-SciTran-Auth'] = args.secret
-    elif args.oauth:
-        http_headers['Authorization'] = os.environ.get(OAUTH_TOKEN_VAR)
-        if not http_headers['Authorization']:
-            log.critical(OAUTH_TOKEN_VAR + ' empty or undefined')
-            sys.exit()
-
-    http_params = {}
-    if args.root:
-        http_params['root'] = 'true'
-
+    log.setLevel(getattr(logging, args.loglevel.upper()))
     log.debug(args)
+
+    if args.oauth:
+        auth_token = os.environ.get(OAUTH_TOKEN_VAR)
+        if not auth_token:
+            log.critical(OAUTH_TOKEN_VAR + ' empty or undefined')
+            sys.exit(1)
 
     log.info('Inspecting  %s', args.path)
     projects = scan_folder(args.path)
@@ -209,8 +187,9 @@ def main():
         print_upload_summary(projects)
         # wait for user confirmation
 
+    rs = util.request_session(('importer', 'admin import'), args.root, args.secret, auth_token, args.insecure)
     try:
-        upload(projects, args.url, http_headers, http_params, args.insecure)
+        upload(projects, args.url, rs)
     # pylint: disable=broad-except
     except Exception as ex:
         log.critical(str(ex))

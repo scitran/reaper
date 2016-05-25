@@ -3,22 +3,14 @@
 import os
 import re
 import sys
-import json
 import time
 import logging
 import datetime
-
-import pytz
-import tzlocal
-import requests
-import requests_toolbelt
 
 from . import util
 from . import tempdir as tempfile
 
 log = logging.getLogger(__name__)
-
-logging.getLogger('requests').setLevel(logging.WARNING)
 
 SLEEPTIME = 60
 GRACEPERIOD = 86400
@@ -109,15 +101,17 @@ class Reaper(object):
 
     def __init__(self, id_, options):
         self.id_ = id_
+        self.state = {}
+        self.alive = True
         self.opt = None
         self.opt_value = None
+        self.upload_targets = []
+
         self.persistence_file = options.get('persistence_file')
-        self.upload_uris = options.get('upload') or []
         self.peripheral_data = dict(options.get('peripheral') or [])
         self.sleeptime = options.get('sleeptime') or SLEEPTIME
         self.graceperiod = datetime.timedelta(seconds=(options.get('graceperiod') or GRACEPERIOD))
         self.reap_existing = options.get('existing') or False
-        self.insecure = options.get('insecure') or False
         self.tempdir = options.get('tempdir')
         self.timezone = options.get('timezone')
         self.oneshot = options.get('oneshot') or False
@@ -134,27 +128,6 @@ class Reaper(object):
             self.opt_field = options['opt_' + self.opt][0]
             self.opt_value = '.*' + options['opt_' + self.opt][1].lower() + '.*'
         self.id_field = options['id_field']
-
-        self.state = {}
-        self.alive = True
-
-        if not self.upload_uris:
-            log.warning('no upload URI provided; === DATA WILL BE PURGED AFTER REAPING ===')
-        for uri in self.upload_uris:
-            try:
-                self.upload_method(uri)
-            except ValueError as ex:
-                log.error(str(ex))
-                sys.exit(1)
-
-        if self.timezone is None:
-            self.timezone = tzlocal.get_localzone()
-        else:
-            try:
-                self.timezone = pytz.timezone(self.timezone)
-            except pytz.UnknownTimeZoneError:
-                log.error('invalid timezone')
-                sys.exit(1)
 
     def halt(self):
         # pylint: disable=missing-docstring
@@ -331,61 +304,16 @@ class Reaper(object):
         # pylint: disable=missing-docstring
         for filename, metadata in metadata_map.iteritems():
             filepath = os.path.join(path, filename)
-            for uri in self.upload_uris:
+            for upload_function, uri, request_session in self.upload_targets:
                 log.info('uploading    %s [%s] to %s', filename, util.hrsize(os.path.getsize(filepath)), uri)
                 start = datetime.datetime.utcnow()
-                success = self.upload_method(uri)(filename, filepath, metadata, uri)
+                metadata['acquisition']['files'][0]['name'] = filename  # pylint disable=fixme; FIXME HACK
+                success = upload_function(request_session, uri, filepath, metadata)
                 upload_duration = (datetime.datetime.utcnow() - start).total_seconds()
                 if not success:
                     return False
                 log.info('uploaded     %s [%s/s]', filename, util.hrsize(os.path.getsize(filepath) / upload_duration))
         return True
-
-    def upload_method(self, uri):
-        """Helper to get an appropriate upload function based on protocol"""
-        if uri.startswith('http://') or uri.startswith('https://'):
-            return self.http_upload
-        elif uri.startswith('s3://'):
-            return self.s3_upload
-        elif uri.startswith('file://'):
-            return self.file_copy
-        else:
-            raise ValueError('bad upload URI "%s"' % uri)
-
-    def http_upload(self, filename, filepath, metadata, uri):
-        # pylint: disable=missing-docstring
-        # TODO dedup this with util.upload_file()
-        headers = {
-            'X-SciTran-Method': 'reaper',
-            'X-SciTran-Name': self.id_,
-        }
-        uri, _, secret = uri.partition('?secret=')
-        if secret:
-            headers['X-SciTran-Auth'] = secret
-        with open(filepath, 'rb') as fd:
-            try:
-                metadata['acquisition']['files'][0]['name'] = filename  # pylint disable=fixme; FIXME HACK
-                metadata_json = json.dumps(metadata, default=util.metadata_encoder)
-                mpe = requests_toolbelt.multipart.encoder.MultipartEncoder(fields={'metadata': metadata_json, 'file': (filename, fd)})
-                headers['Content-Type'] = mpe.content_type
-                r = requests.post(uri, data=mpe, headers=headers, verify=not self.insecure)
-            except requests.exceptions.ConnectionError as ex:
-                log.error('error        %s: %s', filename, ex)
-                return False
-            else:
-                if r.ok:
-                    return True
-                else:
-                    log.warning('failure      %s: %s %s', filename, r.status_code, r.reason)
-                    return False
-
-    def s3_upload(self, filename, filepath, metadata, digest, uri):
-        # pylint: disable=missing-docstring
-        pass
-
-    def file_copy(self, filename, filepath, metadata, digest, uri):
-        # pylint: disable=missing-docstring
-        pass
 
 
 def main(cls, arg_parser_update=None):
@@ -399,7 +327,7 @@ def main(cls, arg_parser_update=None):
     arg_parser.add_argument('-s', '--sleeptime', type=int, help='time to sleep before checking for new data [60s]')
     arg_parser.add_argument('-g', '--graceperiod', type=int, help='time to keep vanished data alive [24h]')
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
-    arg_parser.add_argument('-u', '--upload', action='append', help='upload URI')
+    arg_parser.add_argument('-u', '--upload', action='append', default=[], help='upload URI')
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='retrieve all existing data and exit')
@@ -422,15 +350,27 @@ def main(cls, arg_parser_update=None):
     if not os.path.isdir(persistence_dir):
         os.makedirs(persistence_dir)
 
-    if args.insecure:
-        requests.packages.urllib3.disable_warnings()
-
     if args.workinghours:
         args.workinghours = [datetime.time(i) for i in args.workinghours]
+
+    args.timezone = util.validate_timezone(args.timezone)
+    if args.timezone is None:
+        log.error('invalid timezone')
+        sys.exit(1)
 
     log.debug(args)
 
     reaper = cls(vars(args))
+    if not args.upload:
+        log.warning('no upload URI provided; === DATA WILL BE PURGED AFTER REAPING ===')
+    for uri in args.upload:
+        try:
+            reaper.upload_targets.append(
+                util.uri_upload_function(uri, ('reaper', reaper.id_), insecure=args.insecure)
+            )
+        except ValueError as ex:
+            log.error(str(ex))
+            sys.exit(1)
 
     def term_handler(signum, stack):
         # pylint: disable=missing-docstring,unused-argument
