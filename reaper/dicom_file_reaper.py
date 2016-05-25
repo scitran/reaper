@@ -2,8 +2,9 @@
 #
 # @author:  Gunnar Schaefer
 
-"""
-"""
+# pylint: skip-file
+
+"""DICOM File Reaper"""
 
 import logging
 log = logging.getLogger('reaper.dicom')
@@ -36,19 +37,19 @@ class DicomFileReaper(reaper.Reaper):
 
     def state_str(self, _id, state):
         return '%s [%s, %d files, %s]' % (
-                _id,
-                state['mod_time'].strftime(reaper.DATE_FORMAT),
-                state['file_cnt'],
-                reaper.hrsize(state['size']),
-                )
+            _id,
+            state['mod_time'].strftime(reaper.DATE_FORMAT),
+            state['file_cnt'],
+            reaper.hrsize(state['size']),
+        )
 
     def instrument_query(self):
         i_state = {}
         for dirpath, dirnames, filenames in os.walk(self.path):
             if os.path.basename(dirpath).startswith('.'):
-                continue # ignore dotdirectories
+                continue  # ignore dotdirectories
             if os.path.samefile(dirpath, self.path):
-                continue # ignore files at top-level of self.path
+                continue  # ignore files at top-level of self.path
             if not dirnames and filenames:
                 try:
                     state = {
@@ -75,7 +76,7 @@ class DicomFileReaper(reaper.Reaper):
                 shutil.move(fp, metadata_path)
             else:
                 try:
-                    dcm = dicom.read_file(fp, stop_before_pixels=True) # ensure file is dicom
+                    dcm = dicom.read_file(fp, stop_before_pixels=True)  # ensure file is dicom
                 except:
                     pass
                 else:
@@ -89,12 +90,13 @@ class DicomFileReaper(reaper.Reaper):
             os.remove(metadata_path)
         metadata['filetype'] = 'dicom'
         log.info('compressing  %s' % _id)
-        util.create_archive(reap_path+'.zip', reap_path, os.path.basename(reap_path), metadata)
+        util.create_archive(reap_path + '.zip', reap_path, os.path.basename(reap_path), metadata)
         shutil.rmtree(reap_path)
         return True
 
     def destroy(self, item):
         shutil.rmtree(item['path'])
+
 
 def main():
     positional_args = [
@@ -108,4 +110,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

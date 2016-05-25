@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/scitran/reaper.svg?branch=master)](https://travis-ci.org/scitran/reaper)
+
 ### Installation
 
 #### Python and pip
@@ -44,8 +46,8 @@ make install
 
 #### Reaper
 ```
-git clone https://github.com/scitran/reaper.git && cd reaper
-python setup.py develop
+git clone https://github.com/scitran/reaper.git
+pip install -e reaper
 ```
 
 
@@ -57,12 +59,6 @@ findscu --verbose -S -aet reaper -aec $AEC -k QueryRetrieveLevel="STUDY"  -k Stu
 findscu --verbose -S -aet reaper -aec $AEC -k QueryRetrieveLevel="SERIES" -k StudyDate="" $HOST $PORT
 ```
 
-
-### Development
-
-```
-./reaper/meeg_file_reaper.py -s 1 -i -u https://localhost:8443/api/reaper?secret=change-me <path>
-```
 
 ### Folder Reaper Schema
 ```

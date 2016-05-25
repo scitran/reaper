@@ -1,28 +1,23 @@
-#!/usr/bin/env python
-#
-# @author:  Gunnar Schaefer
-
-"""
-apt-get -V install ipython python-virtualenv python-dev dcmtk
-adduser --disabled-password --gecos "Scitran Reaper" reaper
-"""
-
-import logging
-log = logging.getLogger('reaper.dicom')
+""" SciTran DICOM Net Reaper """
 
 import os
-import dicom
 import shutil
 import string
 import hashlib
+import logging
 import datetime
+
+import dicom
 
 from . import scu
 from . import util
 from . import reaper
-#from . import gephysio
+
+log = logging.getLogger('reaper.dicom')
 
 FILETYPE = 'dicom'
+GEMS_TYPE_SCREENSHOT = ['DERIVED', 'SECONDARY', 'SCREEN SAVE']
+GEMS_TYPE_VXTL = ['DERIVED', 'SECONDARY', 'VXTL STATE']
 
 
 def parse_id(_id, default_subj_code):
@@ -59,6 +54,8 @@ def parse_id(_id, default_subj_code):
 
 class DicomNetReaper(reaper.Reaper):
 
+    """DicomNetReaper class"""
+
     query_params = {
         'StudyInstanceUID': '',
         'SeriesInstanceUID': '',
@@ -78,17 +75,6 @@ class DicomNetReaper(reaper.Reaper):
         self.scu = scu.SCU(options.get('host'), options.get('port'), options.get('return_port'), options.get('aet'), options.get('aec'))
         super(DicomNetReaper, self).__init__(self.scu.aec, options)
         self.anonymize = options.get('anonymize')
-        if options['opt_in']:
-            self.opt = 'in'
-        elif options['opt_out']:
-            self.opt = 'out'
-        else:
-            self.opt = None
-            self.opt_field = self.opt_value = None
-        if self.opt is not None:
-            self.opt_field = options['opt_'+self.opt][0]
-            self.opt_value = '.*' + options['opt_'+self.opt][1].lower() + '.*'
-        self.id_field = options['id_field']
         self.peripheral_data_reapers['gephysio'] = 'gephysio'
 
     def state_str(self, _id, state):
@@ -99,32 +85,32 @@ class DicomNetReaper(reaper.Reaper):
         scu_resp = self.scu.find(scu.SeriesQuery(**self.query_params))
         for r in scu_resp:
             state = {
-                    'images': int(r['NumberOfSeriesRelatedInstances']),
-                    '_id': r[self.id_field],
-                    'opt': r[self.opt_field] if self.opt is not None else None
-                    }
+                'images': int(r['NumberOfSeriesRelatedInstances']),
+                '_id': r[self.id_field],
+                'opt': r[self.opt_field] if self.opt is not None else None,
+            }
             i_state[r['SeriesInstanceUID']] = reaper.ReaperItem(state)
-        return i_state or None # FIXME should return None only on communication error
+        return i_state or None  # TODO should return None only on communication error
 
     def reap(self, _id, item, tempdir):
         if item['state']['images'] == 0:
-            log.info('ignoring     %s (zero images)' % _id)
+            log.info('ignoring     %s (zero images)', _id)
             return None, {}
         if not self.is_desired_item(item['state']['opt']):
-            log.info('ignoring     %s (non-matching opt-%s)' % (_id, self.opt))
+            log.info('ignoring     %s (non-matching opt-%s)', _id, self.opt)
             return None, {}
         reap_start = datetime.datetime.utcnow()
-        log.info('reaping      %s' % self.state_str(_id, item['state']))
+        log.info('reaping      %s', self.state_str(_id, item['state']))
         success, reap_cnt = self.scu.move(scu.SeriesQuery(StudyInstanceUID='', SeriesInstanceUID=_id), tempdir)
         filepaths = [os.path.join(tempdir, filename) for filename in os.listdir(tempdir)]
-        log.info('reaped       %s (%d images) in %.1fs' % (_id, reap_cnt, (datetime.datetime.utcnow() - reap_start).total_seconds()))
+        log.info('reaped       %s (%d images) in %.1fs', _id, reap_cnt, (datetime.datetime.utcnow() - reap_start).total_seconds())
         if success and reap_cnt > 0:
             dcm = self.DicomFile(filepaths[0], self.id_field, self.opt_field)
             if not self.is_desired_item(dcm.opt):
-                log.info('ignoring     %s (non-matching opt-%s)' % (_id, self.opt))
+                log.info('ignoring     %s (non-matching opt-%s)', _id, self.opt)
                 return None, {}
         if success and reap_cnt == item['state']['images']:
-            acq_map = self.split_into_acquisitions(_id, item, tempdir, filepaths)
+            acq_map = self.split_into_acquisitions(_id, tempdir, filepaths)
             metadata_map = {}
             for acq_filename, acq_info in acq_map.iteritems():
                 self.reap_peripheral_data(tempdir, acq_info['dcm'], acq_info['prefix'], acq_info['log_info'])
@@ -133,13 +119,14 @@ class DicomNetReaper(reaper.Reaper):
         else:
             return False, {}
 
-    def split_into_acquisitions(self, _id, item, path, filepaths):
+    def split_into_acquisitions(self, _id, path, filepaths):
+        # pylint: disable=missing-docstring
         dcm_dict = {}
-        log.info('inspecting   %s' % _id)
+        log.info('inspecting   %s', _id)
         for filepath in filepaths:
             dcm = self.DicomFile(filepath, self.id_field, self.opt_field)
             dcm_dict.setdefault(dcm.acq_no, []).append(filepath)
-        log.info('compressing  %s%s' % (_id, ' (and anonymizing)' if self.anonymize else ''))
+        log.info('compressing  %s%s', _id, ' (and anonymizing)' if self.anonymize else '')
         acq_map = {}
         for acq_no, acq_paths in dcm_dict.iteritems():
             name_prefix = _id + ('_' + acq_no if acq_no is not None else '')
@@ -165,8 +152,11 @@ class DicomNetReaper(reaper.Reaper):
             }
         return acq_map
 
-
     class DicomFile(object):
+
+        """
+        DicomFile class
+        """
 
         def __init__(self, filepath, id_field, opt_field, parse=False, anonymize=False, timezone=None):
             if not parse and anonymize:
@@ -200,7 +190,7 @@ class DicomNetReaper(reaper.Reaper):
                     dob = self.parse_patient_dob(dcm.PatientBirthDate)
                     if dob:
                         months = 12 * (study_datetime.year - dob.year) + (study_datetime.month - dob.month) - (study_datetime.day < dob.day)
-                        dcm.PatientAge = '%03dM' % months if months < 960 else '%03dY' % (months/12)
+                        dcm.PatientAge = '%03dM' % months if months < 960 else '%03dY' % (months / 12)
                     del dcm.PatientBirthDate
                 if dcm.get('PatientName'):
                     del dcm.PatientName
@@ -208,14 +198,14 @@ class DicomNetReaper(reaper.Reaper):
 
         @staticmethod
         def is_screenshot(image_type):
-            GEMS_TYPE_SCREENSHOT = ['DERIVED', 'SECONDARY', 'SCREEN SAVE']
-            GEMS_TYPE_VXTL = ['DERIVED', 'SECONDARY', 'VXTL STATE']
+            # pylint: disable=missing-docstring
             if image_type in [GEMS_TYPE_SCREENSHOT, GEMS_TYPE_VXTL]:
                 return True
             return False
 
         @staticmethod
         def timestamp(date, time, timezone):
+            # pylint: disable=missing-docstring
             if date and time:
                 return util.localize_timestamp(datetime.datetime.strptime(date + time[:6], '%Y%m%d%H%M%S'), timezone)
             return None
@@ -273,21 +263,18 @@ class DicomNetReaper(reaper.Reaper):
 
 
 def update_arg_parser(ap):
-    ap.add_argument('host', help='remote hostname or IP'),
-    ap.add_argument('port', help='remote port'),
-    ap.add_argument('return_port', help='local return port'),
-    ap.add_argument('aet', help='local AE title'),
-    ap.add_argument('aec', help='remote AE title'),
+    # pylint: disable=missing-docstring
+    ap.add_argument('host', help='remote hostname or IP')
+    ap.add_argument('port', help='remote port')
+    ap.add_argument('return_port', help='local return port')
+    ap.add_argument('aet', help='local AE title')
+    ap.add_argument('aec', help='remote AE title')
 
-    ap.add_argument('-A', '--no-anonymize', dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate'),
-    ap.add_argument('--id-field', default='PatientID', help='DICOM field for id info [PatientID]'),
-
-    opt_group = ap.add_mutually_exclusive_group()
-    opt_group.add_argument('--opt-in', nargs=2, help='opt-in field and value'),
-    opt_group.add_argument('--opt-out', nargs=2, help='opt-out field and value'),
+    ap.add_argument('-A', '--no-anonymize', dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')
 
     return ap
 
 
 def main():
+    # pylint: disable=missing-docstring
     reaper.main(DicomNetReaper, update_arg_parser)

@@ -2,6 +2,8 @@
 #
 # @author:  Eric Larson
 
+# pylint: skip-file
+
 """
 M/EEG file reaper
 """

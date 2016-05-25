@@ -1,0 +1,12 @@
+sudo: false
+language: python
+python:
+    - "2.7"
+
+install:
+    - pip install .
+    - pip install -r requirements-dev.txt
+
+script:
+    - pylint --reports=no reaper
+    - pep8 --max-line-length=150 --ignore=E402 reaper
