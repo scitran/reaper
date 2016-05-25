@@ -4,8 +4,11 @@ import os
 import re
 import sys
 import time
+import signal
 import logging
+import argparse
 import datetime
+
 
 from . import util
 from . import tempdir as tempfile
@@ -16,7 +19,6 @@ SLEEPTIME = 60
 GRACEPERIOD = 86400
 OFFDUTY_SLEEPTIME = 300
 DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
-
 
 METADATA = [
     # required
@@ -46,37 +48,6 @@ METADATA = [
     ('file', 'instrument'),
     ('file', 'measurements'),
 ]
-
-
-# monkey patching httplib to increase performance due to hard-coded block size
-# pylint: disable=wrong-import-order,wrong-import-position
-import httplib
-from array import array
-
-
-def fast_http_send(self, data):
-    """Send `data' to the server."""
-    if self.sock is None:
-        if self.auto_open:
-            self.connect()
-        else:
-            raise httplib.NotConnected()
-
-    if self.debuglevel > 0:
-        print "send:", repr(data)
-    blocksize = 2**20  # was 8192 originally
-    if hasattr(data, 'read') and not isinstance(data, array):
-        if self.debuglevel > 0:
-            print "sendIng a read()able"
-        datablock = data.read(blocksize)
-        while datablock:
-            self.sock.sendall(datablock)
-            datablock = data.read(blocksize)
-    else:
-        self.sock.sendall(data)
-
-httplib.HTTPConnection.send = fast_http_send
-httplib.HTTPSConnection.send = fast_http_send
 
 
 class ReaperItem(dict):
@@ -318,9 +289,6 @@ class Reaper(object):
 
 def main(cls, arg_parser_update=None):
     # pylint: disable=missing-docstring
-    import signal
-    import argparse
-
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('persistence_file', help='path to persistence file')
     arg_parser.add_argument('-p', '--peripheral', nargs=2, action='append', help='path to peripheral data')

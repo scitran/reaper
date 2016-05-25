@@ -2,6 +2,8 @@
 
 import os
 import json
+import array
+import httplib
 import logging
 import zipfile
 import datetime
@@ -19,6 +21,32 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 logging.getLogger('requests').setLevel(logging.WARNING)
+
+
+# monkey patching httplib to increase performance due to hard-coded block size
+def fast_http_send(self, data):
+    """Send `data' to the server."""
+    if self.sock is None:
+        if self.auto_open:
+            self.connect()
+        else:
+            raise httplib.NotConnected()
+
+    if self.debuglevel > 0:
+        print "send:", repr(data)
+    blocksize = 2**20  # was 8192 originally
+    if hasattr(data, 'read') and not isinstance(data, array.array):
+        if self.debuglevel > 0:
+            print "sendIng a read()able"
+        datablock = data.read(blocksize)
+        while datablock:
+            self.sock.sendall(datablock)
+            datablock = data.read(blocksize)
+    else:
+        self.sock.sendall(data)
+
+httplib.HTTPConnection.send = fast_http_send
+httplib.HTTPSConnection.send = fast_http_send
 
 
 def hrsize(size):
