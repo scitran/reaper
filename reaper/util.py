@@ -161,9 +161,17 @@ def http_upload(rs, uri, filepath, metadata):
     metadata_json = json.dumps(metadata, default=metadata_encoder)
     with open(filepath, 'rb') as fd:
         mpe = requests_toolbelt.multipart.encoder.MultipartEncoder(fields={'metadata': metadata_json, 'file': (filename, fd)})
-        r = rs.post(uri, data=mpe, headers={'Content-Type': mpe.content_type})
-        if not r.ok:
-            raise Exception(str(r.status_code) + ' ' + r.reason)
+        try:
+            r = rs.post(uri, data=mpe, headers={'Content-Type': mpe.content_type})
+        except requests.exceptions.ConnectionError as ex:
+            log.error('error        %s: %s', filename, ex)
+            return False
+        else:
+            if r.ok:
+                return True
+            else:
+                log.warning('failure      %s: %s %s', filename, r.status_code, r.reason)
+                return False
 
 
 def request_session(client_info, root=False, secret=None, auth_token=None, insecure=False):
