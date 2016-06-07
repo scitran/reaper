@@ -25,7 +25,7 @@ def pkg_series(_id, path, id_field, opt_field=None, anonymize=False, timezone=No
         dcm = DicomFile(filepath, id_field, opt_field)
         dcm_dict.setdefault(dcm.acq_no, []).append(filepath)
     log.info('compressing  %s%s', _id, ' (and anonymizing)' if anonymize else '')
-    acq_map = {}
+    metadata_map = {}
     for acq_no, acq_paths in dcm_dict.iteritems():
         name_prefix = _id + ('_' + acq_no if acq_no is not None else '')
         dir_name = name_prefix + '_' + 'dicom'
@@ -43,13 +43,8 @@ def pkg_series(_id, path, id_field, opt_field=None, anonymize=False, timezone=No
         metadata = util.object_metadata(dcm, timezone, os.path.basename(arc_path))
         util.set_archive_metadata(arc_path, metadata)
         shutil.rmtree(arcdir_path)
-        acq_map[arc_path] = {
-            'dcm': dcm,
-            'metadata': metadata,
-            'prefix': name_prefix,
-            'log_info': '%s%s' % (_id, '.' + acq_no if acq_no is not None else ''),
-        }
-    return acq_map
+        metadata_map[arc_path] = metadata
+    return metadata_map
 
 
 class DicomFile(object):

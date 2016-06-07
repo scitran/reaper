@@ -82,13 +82,7 @@ for series_uid, series_info in matched_series.iteritems():
         if not series_info['success']:
             log.error('Failure      %s', series_uid)
             continue
-
-        acq_map = reaper.dcm.pkg_series(series_uid, reapdir, args.id_field, None, args.anonymize, args.timezone)
-
-        metadata_map = {}  # FIXME pkg_series() should immediately return this metadata map
-        for acq_filename, acq_info in acq_map.iteritems():
-            metadata_map[acq_filename] = acq_info['metadata']
-
+        metadata_map = reaper.dcm.pkg_series(series_uid, reapdir, args.id_field, None, args.anonymize, args.timezone)
         for filepath, metadata in metadata_map.iteritems():
             success = reaper.upload.metadata_upload(filepath, metadata, upload_function)
             if not success:

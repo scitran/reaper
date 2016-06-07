@@ -33,7 +33,6 @@ class PFileReaper(reaper.Reaper):
         self.data_glob = os.path.join(options.get('path'), 'P?????.7')
         super(PFileReaper, self).__init__(options.get('path').strip('/').replace('/', '_'), options)
         self.reap_auxfiles = options['aux']
-        # self.peripheral_data_reapers['gephysio'] = gephysio.reap
 
     def state_str(self, _id, state):
         return '%s, [%s, %s]' % (_id, state['mod_time'].strftime(reaper.DATE_FORMAT), util.hrsize(state['size']))
@@ -117,7 +116,6 @@ class PFileReaper(reaper.Reaper):
             util.set_archive_metadata(filepath, metadata)
             reap_time = (datetime.datetime.utcnow() - reap_start).total_seconds()
             log.info('reaped.zip   %s [%s%s] in %.1fs', _id, pfile_size, auxfile_log_str, reap_time)
-            self.reap_peripheral_data(tempdir, pf, pf.acquisition_uid, _id)
             return True, {filepath: metadata}
 
 

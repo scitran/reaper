@@ -19,7 +19,6 @@ class DicomNetReaper(reaper.Reaper):
         self.scu = scu.SCU(options.get('host'), options.get('port'), options.get('return_port'), options.get('aet'), options.get('aec'))
         super(DicomNetReaper, self).__init__(self.scu.aec, options)
         self.anonymize = options.get('anonymize')
-        self.peripheral_data_reapers['gephysio'] = 'gephysio'
 
     def state_str(self, _id, state):
         return '%s (%s)' % (_id, ', '.join(['%s %s' % (v, k or 'null') for k, v in state.iteritems()]))
@@ -55,11 +54,7 @@ class DicomNetReaper(reaper.Reaper):
                 log.info('ignoring     %s (non-matching opt-%s)', _id, self.opt)
                 return None, {}
         if success and reap_cnt == item['state']['images']:
-            acq_map = dcm.pkg_series(_id, reapdir, self.id_field, self.opt_field, self.anonymize, self.timezone)
-            metadata_map = {}
-            for acq_filename, acq_info in acq_map.iteritems():
-                self.reap_peripheral_data(tempdir, acq_info['dcm'], acq_info['prefix'], acq_info['log_info'])
-                metadata_map[acq_filename] = acq_info['metadata']
+            metadata_map = dcm.pkg_series(_id, reapdir, self.id_field, self.opt_field, self.anonymize, self.timezone)
             return True, metadata_map
         else:
             return False, {}

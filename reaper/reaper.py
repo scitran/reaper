@@ -39,7 +39,6 @@ class Reaper(object):
 
     """Reaper class"""
 
-    peripheral_data_reapers = {}
     destructive = False
 
     def __init__(self, id_, options):
@@ -51,7 +50,6 @@ class Reaper(object):
         self.upload_targets = []
 
         self.persistence_file = options.get('persistence_file')
-        self.peripheral_data = dict(options.get('peripheral') or [])
         self.sleeptime = options.get('sleeptime') or SLEEPTIME
         self.graceperiod = datetime.timedelta(seconds=(options.get('graceperiod') or GRACEPERIOD))
         self.reap_existing = options.get('existing') or False
@@ -217,23 +215,11 @@ class Reaper(object):
         log.debug('persisting   instrument state')
         util.write_state_file(self.persistence_file, state)
 
-    def reap_peripheral_data(self, reap_path, reap_data, reap_name, log_info):
-        # pylint: disable=missing-docstring
-        for pdn, pdp in self.peripheral_data.iteritems():
-            if pdn in self.peripheral_data_reapers:
-                # FIXME
-                # import self.peripheral_data_reapers[pdn]
-                # run self.peripheral_data_reapers[pdn].reap(...)
-                self.peripheral_data_reapers[pdn](pdn, pdp, reap_path, reap_data, reap_name + '_' + pdn, log, log_info, self.tempdir)
-            else:
-                log.warning('periph data %s %s does not exist', log_info, pdn)
-
 
 def main(cls, arg_parser_update=None):
     # pylint: disable=missing-docstring
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('persistence_file', help='path to persistence file')
-    arg_parser.add_argument('-p', '--peripheral', nargs=2, action='append', help='path to peripheral data')
     arg_parser.add_argument('-s', '--sleeptime', type=int, help='time to sleep before checking for new data [60s]')
     arg_parser.add_argument('-g', '--graceperiod', type=int, help='time to keep vanished data alive [24h]')
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
