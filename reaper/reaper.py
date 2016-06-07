@@ -53,7 +53,6 @@ class Reaper(object):
         self.reap_existing = options.get('existing') or False
         self.tempdir = options.get('tempdir')
         self.timezone = options.get('timezone')
-        self.oneshot = options.get('oneshot') or False
         self.working_hours = options.get('workinghours')
 
         if options['opt_in']:
@@ -87,7 +86,7 @@ class Reaper(object):
     def run(self):
         # pylint: disable=missing-docstring,too-many-branches,too-many-statements
         log.info('initializing ' + self.__class__.__name__ + '...')
-        if self.oneshot or self.reap_existing:
+        if self.reap_existing:
             self.state = {}
         else:
             self.state = self.persistent_state
@@ -163,8 +162,6 @@ class Reaper(object):
                     self.persistent_state = self.state
                 unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
                 log.info('monitoring   %d items, %d not reaped', len(self.state), unreaped_cnt)
-                if self.oneshot and unreaped_cnt == 0:
-                    break
             else:
                 log.warning('unable to retrieve instrument state')
             sleeptime = self.sleeptime - (datetime.datetime.utcnow() - reap_start).total_seconds()
@@ -216,7 +213,6 @@ def main(cls, arg_parser_update=None):
     arg_parser.add_argument('-u', '--upload', action='append', default=[], help='upload URI')
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
     arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
-    arg_parser.add_argument('-o', '--oneshot', action='store_true', help='retrieve all existing data and exit')
     arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-k', '--workinghours', nargs=2, type=int, help='working hours in 24hr time [0 24]')
