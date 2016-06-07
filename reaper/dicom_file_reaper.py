@@ -32,7 +32,6 @@ class DicomFileReaper(reaper.Reaper):
         elif not os.path.isdir(self.path):
             log.error('path argument must be a directory')
             sys.exit(1)
-        self.destructive = options.get('destructive')
         super(DicomFileReaper, self).__init__(self.path.strip('/').replace('/', '_'), options)
 
     def state_str(self, _id, state):
@@ -94,16 +93,12 @@ class DicomFileReaper(reaper.Reaper):
         shutil.rmtree(reap_path)
         return True
 
-    def destroy(self, item):
-        shutil.rmtree(item['path'])
-
 
 def main():
     positional_args = [
         (('path',), dict(help='path to DICOM files')),
     ]
     optional_args = [
-        (('-d', '--destructive'), dict(action='store_true', help='delete data after reaping'))
     ]
     reaper.main(DicomFileReaper, positional_args, optional_args)
 

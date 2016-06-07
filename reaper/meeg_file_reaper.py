@@ -33,7 +33,6 @@ class MEEGFileReaper(reaper.Reaper):
             log.error('path argument must be a directory')
             sys.exit(1)
         log.info('Monitoring acquisition directory %s' % self.path)
-        self.destructive = options.get('destructive')
         super(MEEGFileReaper, self).__init__(
             self.path.strip('/').replace('/', '_'), options)
 
@@ -96,9 +95,6 @@ class MEEGFileReaper(reaper.Reaper):
         util.create_archive(reap_path + '.zip', reap_path, os.path.basename(reap_path), metadata)
         shutil.rmtree(reap_path)
         return True
-
-    def destroy(self, item):
-        shutil.rmtree(item['path'])
 
 
 def main():

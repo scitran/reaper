@@ -39,8 +39,6 @@ class Reaper(object):
 
     """Reaper class"""
 
-    destructive = False
-
     def __init__(self, id_, options):
         self.id_ = id_
         self.state = {}
@@ -83,10 +81,6 @@ class Reaper(object):
         pass
 
     def reap(self, _id, item, tempdir):
-        # pylint: disable=missing-docstring
-        pass
-
-    def destroy(self, item):
         # pylint: disable=missing-docstring
         pass
 
@@ -156,11 +150,7 @@ class Reaper(object):
                         item['reaped'], metadata_map = self.reap(_id, item, tempdir)  # returns True, False, None
                         if item['reaped']:
                             item['failures'] = 0
-                            if upload.upload_many(metadata_map, self.upload_targets):
-                                if self.destructive:
-                                    self.destroy(item)
-                            else:
-                                item['reaped'] = False
+                            item['reaped'] = upload.upload_many(metadata_map, self.upload_targets)
                         elif item['reaped'] is None:  # mark skipped or discarded items as reaped
                             item['reaped'] = True
                         else:
