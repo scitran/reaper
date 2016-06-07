@@ -2,17 +2,43 @@
 
 import os
 import json
-import array
-import httplib
+import string
 import logging
 import zipfile
 import datetime
 
 import pytz
 import tzlocal
-import requests
 import dateutil.parser
-import requests_toolbelt
+
+METADATA = [
+    # required
+    ('group', '_id'),
+    ('project', 'label'),
+    ('session', 'uid'),
+    ('acquisition', 'uid'),
+    # desired (for enhanced UI/UX)
+    ('session', 'timestamp'),
+    ('session', 'timezone'),        # auto-set
+    ('subject', 'code'),
+    ('acquisition', 'label'),
+    ('acquisition', 'timestamp'),
+    ('acquisition', 'timezone'),    # auto-set
+    ('file', 'type'),
+    # optional
+    ('session', 'label'),
+    ('session', 'operator'),
+    ('subject', 'firstname'),
+    ('subject', 'lastname'),
+    ('subject', 'firstname_hash'),  # unrecoverable, if anonymizing
+    ('subject', 'lastname_hash'),   # unrecoverable, if anonymizing
+    ('subject', 'sex'),
+    ('subject', 'age'),
+    ('acquisition', 'instrument'),
+    ('acquisition', 'measurement'),
+    ('file', 'instrument'),
+    ('file', 'measurements'),
+]
 
 logging.basicConfig(
     format='%(asctime)s %(name)16.16s:%(levelname)4.4s %(message)s',
@@ -20,33 +46,6 @@ logging.basicConfig(
     level=logging.INFO,
 )
 log = logging.getLogger(__name__)
-logging.getLogger('requests').setLevel(logging.WARNING)
-
-
-# monkey patching httplib to increase performance due to hard-coded block size
-def fast_http_send(self, data):
-    """Send `data' to the server."""
-    if self.sock is None:
-        if self.auto_open:
-            self.connect()
-        else:
-            raise httplib.NotConnected()
-
-    if self.debuglevel > 0:
-        print "send:", repr(data)
-    blocksize = 2**20  # was 8192 originally
-    if hasattr(data, 'read') and not isinstance(data, array.array):
-        if self.debuglevel > 0:
-            print "sendIng a read()able"
-        datablock = data.read(blocksize)
-        while datablock:
-            self.sock.sendall(datablock)
-            datablock = data.read(blocksize)
-    else:
-        self.sock.sendall(data)
-
-httplib.HTTPConnection.send = fast_http_send
-httplib.HTTPSConnection.send = fast_http_send
 
 
 def hrsize(size):
@@ -60,6 +59,23 @@ def hrsize(size):
         if size < 1000.:
             return '%.0f%sB' % (size, suffix)
     return '%.0f%sB' % (size, 'Y')
+
+
+def object_metadata(obj, timezone, filename):
+    # pylint: disable=missing-docstring
+    metadata = {
+        'session': {'timezone': timezone},
+        'acquisition': {'timezone': timezone},
+    }
+    for md_group, md_field in METADATA:
+        value = getattr(obj, md_group + '_' + md_field, None)
+        if value is not None:
+            metadata.setdefault(md_group, {})
+            metadata[md_group][md_field] = value
+    metadata['file']['name'] = filename
+    metadata['session']['subject'] = metadata.pop('subject', {})
+    metadata['acquisition']['files'] = [metadata.pop('file', {})]
+    return metadata
 
 
 def metadata_encoder(obj):
@@ -111,16 +127,23 @@ def write_state_file(path, state):
     os.rename(temp_path, path)
 
 
-def create_archive(content, arcname, metadata, outdir=None):
+def create_archive(content, arcname, metadata=None, outdir=None):
     # pylint: disable=missing-docstring
     path = (os.path.join(outdir, arcname) if outdir else os.path.join(os.path.dirname(content), arcname)) + '.zip'
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
-        zf.comment = json.dumps(metadata, default=metadata_encoder)
+        if metadata is not None:
+            zf.comment = json.dumps(metadata, default=metadata_encoder)
         files = [(fn, os.path.join(content, fn)) for fn in os.listdir(content)]
         files.sort(key=lambda f: os.path.getsize(f[1]))
         for fn, fp in files:
             zf.write(fp, os.path.join(arcname, fn))
     return path
+
+
+def set_archive_metadata(path, metadata):
+    # pylint: disable=missing-docstring
+    with zipfile.ZipFile(path, 'a', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+        zf.comment = json.dumps(metadata, default=metadata_encoder)
 
 
 def validate_timezone(zone):
@@ -140,65 +163,33 @@ def localize_timestamp(timestamp, timezone):
     return timezone.localize(timestamp)
 
 
-def uri_upload_function(uri, client_info, root=False, secret=None, auth_token=None, insecure=False):
-    # pylint: disable=missing-docstring
-    """Helper to get an appropriate upload function based on protocol"""
-    if uri.startswith('http://') or uri.startswith('https://'):
-        uri, _, secret = uri.partition('?secret=')
-        rs = request_session(client_info, root, secret, auth_token, insecure)
-        return http_upload, uri, rs
-    elif uri.startswith('s3://'):
-        return s3_upload, None, None
-    elif uri.startswith('file://'):
-        return file_copy, None, None
-    else:
-        raise ValueError('bad upload URI "%s"' % uri)
+def parse_sorting_info(sort_info, default_subj_code):
+    """
+    Parse subject code, group name and project name from an id.
 
+    If the id does not contain a subject code, rely on the supplied default.
 
-def http_upload(rs, uri, filepath, metadata):
-    # pylint: disable=missing-docstring
-    filename = os.path.basename(filepath)
-    metadata_json = json.dumps(metadata, default=metadata_encoder)
-    with open(filepath, 'rb') as fd:
-        mpe = requests_toolbelt.multipart.encoder.MultipartEncoder(fields={'metadata': metadata_json, 'file': (filename, fd)})
-        try:
-            r = rs.post(uri, data=mpe, headers={'Content-Type': mpe.content_type})
-        except requests.exceptions.ConnectionError as ex:
-            log.error('error        %s: %s', filename, ex)
-            return False
-        else:
-            if r.ok:
-                return True
-            else:
-                log.warning('failure      %s: %s %s', filename, r.status_code, r.reason)
-                return False
+    Expected formatting: subj_code@group_name/project_name
 
+    Parameters
+    ----------
+    sort_info : str
+        sort_info string from data
+    default_subj_code : str
+        subject code to use if sort_info does not contain a subject code
 
-def request_session(client_info, root=False, secret=None, auth_token=None, insecure=False):
-    # pylint: disable=missing-docstring
-    if insecure:
-        requests.packages.urllib3.disable_warnings()
-    rs = requests.Session()
-    rs.headers = {
-        'X-SciTran-Method': client_info[0],
-        'X-SciTran-Name': client_info[1],
-    }
-    rs.params = {
-        'root': root,
-    }
-    if secret:
-        rs.headers['X-SciTran-Auth'] = secret
-    elif auth_token:
-        rs.headers['Authorization'] = auth_token
-    rs.verify = not insecure
-    return rs
+    Returns
+    -------
+    subj_code : str
+        string of subject identifer
+    group_name : str
+        string of group name
+    project_name : str
+        string of project name
 
-
-def s3_upload(self, filename, filepath, metadata, digest, uri):
-    # pylint: disable=missing-docstring, unused-argument
-    pass
-
-
-def file_copy(self, filename, filepath, metadata, digest, uri):
-    # pylint: disable=missing-docstring, unused-argument
-    pass
+    """
+    subj_code = group_name = exp_name = None
+    if sort_info is not None:
+        subj_code, _, lab_info = sort_info.strip(string.punctuation + string.whitespace).rpartition('@')
+        group_name, _, exp_name = lab_info.partition('/')
+    return subj_code or default_subj_code, group_name, exp_name

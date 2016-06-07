@@ -1,0 +1,90 @@
+#!/usr/bin/env python
+
+# vim: filetype=python
+
+import os
+import sys
+import logging
+import argparse
+
+import reaper.dcm
+import reaper.scu
+import reaper.util
+import reaper.upload
+import reaper.tempdir as tempfile
+
+log = logging.getLogger('dicom_sniper')
+
+
+arg_parser = argparse.ArgumentParser()
+arg_parser.add_argument('host', help='remote hostname or IP')
+arg_parser.add_argument('port', help='remote port')
+arg_parser.add_argument('rport', help='local return port')
+arg_parser.add_argument('aet', help='local AE title')
+arg_parser.add_argument('aec', help='remote AE title')
+arg_parser.add_argument('uri', help='upload URI')
+arg_parser.add_argument('-A', '--no-anonymize', dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')
+arg_parser.add_argument('-k', '--query', nargs=2, action='append', default=[], help='query tuple')
+arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
+arg_parser.add_argument('-y', '--yes', action='store_true', help='do not prompt to continue')
+arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
+arg_parser.add_argument('--id-field', default='PatientID', help='DICOM field for id info [PatientID]')
+args = arg_parser.parse_args()
+args.query = dict(args.query)
+
+args.timezone = reaper.util.validate_timezone(args.timezone)
+if args.timezone is None:
+    log.error('invalid timezone')
+    sys.exit(1)
+
+log.setLevel(getattr(logging, args.loglevel.upper()))
+
+
+scu_ = reaper.scu.SCU(args.host, args.port, args.rport, args.aet, args.aec)
+
+scu_studies = scu_.find(reaper.scu.StudyQuery(**reaper.scu.SCUQuery(**args.query)))
+
+matched_series = {}
+for study in scu_studies:
+    scu_series = scu_.find(reaper.scu.SeriesQuery(**reaper.scu.SCUQuery(StudyInstanceUID=study.StudyInstanceUID)))
+    for series in scu_series:
+        matched_series[series.SeriesInstanceUID] = {
+            'study_uid': study.StudyInstanceUID,
+            'image_cnt': int(series.NumberOfSeriesRelatedInstances),
+            'success': False,
+        }
+matched_series_cnt = len(matched_series)
+log.info('Found %d DICOM Series in %d Studies', matched_series_cnt, len(scu_studies))
+
+if not args.yes:
+    raw_input('Press Enter to fetch and upload all Series or Ctrl-C to abort...')
+
+upload_function = reaper.upload.upload_function(args.uri, ('sniper', args.aec))
+
+for series_uid, series_info in matched_series.iteritems():
+    with tempfile.TemporaryDirectory() as tempdir:
+        reapdir = os.path.join(tempdir, 'reap')
+        os.mkdir(reapdir)
+        log.info('Fetching     %s [%d images]', series_uid, series_info['image_cnt'])
+        series_info['success'], _ = scu_.move(reaper.scu.SeriesQuery(SeriesInstanceUID=series_uid), reapdir)
+        if not series_info['success']:
+            log.error('Failure      %s', series_uid)
+            continue
+
+        acq_map = reaper.dcm.pkg_series(series_uid, reapdir, args.id_field, None, args.anonymize, args.timezone)
+
+        metadata_map = {}  # FIXME pkg_series() should immediately return this metadata map
+        for acq_filename, acq_info in acq_map.iteritems():
+            metadata_map[acq_filename] = acq_info['metadata']
+
+        for filepath, metadata in metadata_map.iteritems():
+            success = reaper.upload.metadata_upload(filepath, metadata, upload_function)
+            if not success:
+                break
+        series_info['success'] = success
+
+success_cnt = sum([series_info['success'] for series_info in matched_series.itervalues()])
+log.info('%d Series transferred and uploaded successfully', success_cnt)
+if success_cnt < matched_series_cnt:
+    log.error('%d Series failed to transfer or upload', matched_series_cnt - success_cnt)
+    sys.exit(1)

@@ -11,6 +11,7 @@ import datetime
 
 
 from . import util
+from . import upload
 from . import tempdir as tempfile
 
 log = logging.getLogger(__name__)
@@ -19,35 +20,6 @@ SLEEPTIME = 60
 GRACEPERIOD = 86400
 OFFDUTY_SLEEPTIME = 300
 DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
-
-METADATA = [
-    # required
-    ('group', '_id'),
-    ('project', 'label'),
-    ('session', 'uid'),
-    ('acquisition', 'uid'),
-    # desired (for enhanced UI/UX)
-    ('session', 'timestamp'),
-    ('session', 'timezone'),        # auto-set
-    ('subject', 'code'),
-    ('acquisition', 'label'),
-    ('acquisition', 'timestamp'),
-    ('acquisition', 'timezone'),    # auto-set
-    ('file', 'type'),
-    # optional
-    ('session', 'label'),
-    ('session', 'operator'),
-    ('subject', 'firstname'),
-    ('subject', 'lastname'),
-    ('subject', 'firstname_hash'),  # unrecoverable, if anonymizing
-    ('subject', 'lastname_hash'),   # unrecoverable, if anonymizing
-    ('subject', 'sex'),
-    ('subject', 'age'),
-    ('acquisition', 'instrument'),
-    ('acquisition', 'measurement'),
-    ('file', 'instrument'),
-    ('file', 'measurements'),
-]
 
 
 class ReaperItem(dict):
@@ -186,7 +158,7 @@ class Reaper(object):
                         item['reaped'], metadata_map = self.reap(_id, item, tempdir)  # returns True, False, None
                         if item['reaped']:
                             item['failures'] = 0
-                            if self.upload(metadata_map, tempdir):
+                            if upload.upload_many(metadata_map, self.upload_targets):
                                 if self.destructive:
                                     self.destroy(item)
                             else:
@@ -211,21 +183,6 @@ class Reaper(object):
             if sleeptime > 0:
                 log.info('sleeping     %.1fs', sleeptime)
                 time.sleep(sleeptime)
-
-    def metadata(self, obj):
-        # pylint: disable=missing-docstring
-        metadata = {
-            'session': {'timezone': self.timezone},
-            'acquisition': {'timezone': self.timezone},
-        }
-        for md_group, md_field in METADATA:
-            value = getattr(obj, md_group + '_' + md_field, None)
-            if value is not None:
-                metadata.setdefault(md_group, {})
-                metadata[md_group][md_field] = value
-        metadata['session']['subject'] = metadata.pop('subject', {})    # pylint disable=fixme; FIXME HACK
-        metadata['acquisition']['files'] = [metadata.pop('file', {})]   # pylint disable=fixme; FIXME HACK
-        return metadata
 
     def is_desired_item(self, opt):
         # pylint: disable=missing-docstring
@@ -257,7 +214,7 @@ class Reaper(object):
     @persistent_state.setter
     def persistent_state(self, state):
         # pylint: disable=missing-docstring
-        log.debug('updating persistence file')
+        log.debug('persisting   instrument state')
         util.write_state_file(self.persistence_file, state)
 
     def reap_peripheral_data(self, reap_path, reap_data, reap_name, log_info):
@@ -270,21 +227,6 @@ class Reaper(object):
                 self.peripheral_data_reapers[pdn](pdn, pdp, reap_path, reap_data, reap_name + '_' + pdn, log, log_info, self.tempdir)
             else:
                 log.warning('periph data %s %s does not exist', log_info, pdn)
-
-    def upload(self, metadata_map, path):
-        # pylint: disable=missing-docstring
-        for filename, metadata in metadata_map.iteritems():
-            filepath = os.path.join(path, filename)
-            for upload_function, uri, request_session in self.upload_targets:
-                log.info('uploading    %s [%s] to %s', filename, util.hrsize(os.path.getsize(filepath)), uri)
-                start = datetime.datetime.utcnow()
-                metadata['acquisition']['files'][0]['name'] = filename  # pylint disable=fixme; FIXME HACK
-                success = upload_function(request_session, uri, filepath, metadata)
-                upload_duration = (datetime.datetime.utcnow() - start).total_seconds()
-                if not success:
-                    return False
-                log.info('uploaded     %s [%s/s]', filename, util.hrsize(os.path.getsize(filepath) / upload_duration))
-        return True
 
 
 def main(cls, arg_parser_update=None):
@@ -334,7 +276,7 @@ def main(cls, arg_parser_update=None):
     for uri in args.upload:
         try:
             reaper.upload_targets.append(
-                util.uri_upload_function(uri, ('reaper', reaper.id_), insecure=args.insecure)
+                upload.upload_function(uri, ('reaper', reaper.id_), insecure=args.insecure)
             )
         except ValueError as ex:
             log.error(str(ex))

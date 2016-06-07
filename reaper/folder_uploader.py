@@ -7,6 +7,7 @@ import logging
 import argparse
 
 from . import util
+from . import upload
 from . import tempdir as tempfile
 
 logging.basicConfig(
@@ -104,9 +105,8 @@ def file_metadata(f, **kwargs):
     return md
 
 
-def upload(projects, url, request_session):
+def process(projects, upload_func):
     # pylint: disable=missing-docstring
-    upload_url = url + '/upload/label'
     action_str = 'Upserting %sfiles to %s'
     file_str = '  %s %-10.10s: %s'
 
@@ -114,15 +114,11 @@ def upload(projects, url, request_session):
         group = project['group']
         p_label = group + ' > ' + project['label']
         metadata = {'group': {'_id': group}, 'project': {'label': project['label']}}
-        log.info('Upserting group ' + group)
-        r = request_session.post(url + '/groups', json={'_id': group.lower(), 'name': group})
-        if not r.ok:
-            log.error('Failed to upsert group ' + group + '. Trying to proceed anyway.')
         log.info(action_str, '', p_label)
         for f in project['files']:
             log.info(file_str, 'Uploading', f['type'], f['path'])
             metadata['project']['files'] = [file_metadata(f)]
-            util.http_upload(request_session, upload_url, f['path'], metadata)
+            upload_func(f['path'], metadata)
         metadata['project'].pop('files', [])
         for session in project['sessions']:
             s_label = p_label + ' > ' + session['label']
@@ -131,7 +127,7 @@ def upload(projects, url, request_session):
             for f in session['files']:
                 log.info(file_str, 'Uploading', f['type'], f['path'])
                 metadata['session']['files'] = [file_metadata(f)]
-                util.http_upload(request_session, upload_url, f['path'], metadata)
+                upload_func(f['path'], metadata)
             metadata['session'].pop('files', [])
             for acquisition in session['acquisitions']:
                 a_label = s_label + ' > ' + acquisition['label']
@@ -140,7 +136,7 @@ def upload(projects, url, request_session):
                 for f in acquisition['files']:
                     log.info(file_str, 'Uploading', f['type'], f['path'])
                     metadata['acquisition']['files'] = [file_metadata(f)]
-                    util.http_upload(request_session, upload_url, f['path'], metadata)
+                    upload_func(f['path'], metadata)
                 metadata['acquisition'].pop('files', [])
                 log.info(action_str, 'pack-', a_label)
                 for f in acquisition['packfiles']:
@@ -150,22 +146,19 @@ def upload(projects, url, request_session):
                         fp = util.create_archive(f['path'], arcname, metadata, tempdir)
                         metadata['acquisition']['files'] = [file_metadata(f, name=os.path.basename(fp))]
                         log.info(file_str, 'Uploading', f['type'], f['path'])
-                        util.http_upload(request_session, upload_url, fp, metadata)
+                        upload_func(fp, metadata)
                 metadata['acquisition'].pop('files', [])
 
 
 def main():
     # pylint: disable=missing-docstring
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('url', help='API URL')
     arg_parser.add_argument('path', help='path to reap')
+    arg_parser.add_argument('uri', help='API URL')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-u', '--unattended', action='store_true', help='do not stop for user confirmation')
     arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
-
-    auth_group = arg_parser.add_mutually_exclusive_group(required=False)
-    auth_group.add_argument('--oauth', action='store_true', help='read OAuth token from ' + OAUTH_TOKEN_VAR)
-    auth_group.add_argument('--secret', help='shared API secret')
+    arg_parser.add_argument('--oauth', action='store_true', help='read OAuth token from ' + OAUTH_TOKEN_VAR)
     arg_parser.add_argument('--root', action='store_true', help='send API requests as site admin')
 
     args = arg_parser.parse_args()
@@ -187,9 +180,9 @@ def main():
         print_upload_summary(projects)
         # wait for user confirmation
 
-    rs = util.request_session(('importer', 'admin import'), args.root, args.secret, auth_token, args.insecure)
+    upload_func = upload.upload_function(args.uri, ('importer', 'admin import'), args.root, auth_token, args.insecure)
     try:
-        upload(projects, args.url, rs)
+        process(projects, upload_func)
     # pylint: disable=broad-except
     except Exception as ex:
         log.critical(str(ex))

@@ -16,7 +16,6 @@ import datetime
 
 from . import util
 from . import reaper
-from . import dicom_net_reaper
 
 log = logging.getLogger('reaper.pfile')
 
@@ -85,7 +84,8 @@ class PFileReaper(reaper.Reaper):
         except Exception:
             return False, None
         else:
-            return True, {os.path.basename(filepath): self.metadata(pf)}
+            metadata = util.object_metadata(pf, self.timezone, os.path.basename(filepath))
+            return True, {filepath: metadata}
 
     def reap_aux(self, _id, item, pf, tempdir):
         # pylint: disable=missing-docstring
@@ -105,19 +105,20 @@ class PFileReaper(reaper.Reaper):
         reap_start = datetime.datetime.utcnow()
         auxfile_log_str = ' + %d aux files' % len(auxfiles) if auxfiles else ''
         log.info('reaping.zip  %s [%s%s]', _id, pfile_size, auxfile_log_str)
-        metadata = self.metadata(pf)
         try:
-            filepath = util.create_archive(reap_path, os.path.basename(reap_path), metadata)
+            filepath = util.create_archive(reap_path, os.path.basename(reap_path))
             shutil.rmtree(reap_path)
         # pylint: disable=broad-except
         except Exception:
             log.warning('reap error   %s%s', _id, ' or aux files' if auxfiles else '')
             return False, None
         else:
+            metadata = util.object_metadata(pf, self.timezone, os.path.basename(filepath))
+            util.set_archive_metadata(filepath, metadata)
             reap_time = (datetime.datetime.utcnow() - reap_start).total_seconds()
             log.info('reaped.zip   %s [%s%s] in %.1fs', _id, pfile_size, auxfile_log_str, reap_time)
             self.reap_peripheral_data(tempdir, pf, pf.acquisition_uid, _id)
-            return True, {os.path.basename(filepath): metadata}
+            return True, {filepath: metadata}
 
 
 class PFile(object):
@@ -144,7 +145,7 @@ class PFile(object):
         self.acquisition_uid = pf.series_uid + '_' + str(pf.acq_no)
         self.acquisition_timestamp = pf.timestamp
         self.acquisition_label = pf.series_desc
-        self.subj_code, self.group__id, self.project_label = dicom_net_reaper.parse_id(self._id, 'ex' + pf.exam_no)
+        self.subj_code, self.group__id, self.project_label = util.parse_sorting_info(self._id, 'ex' + pf.exam_no)
         self.file_type = FILETYPE
 
 
