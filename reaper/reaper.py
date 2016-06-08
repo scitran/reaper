@@ -107,38 +107,35 @@ class Reaper(object):
                     log.info('ignoring     %d items currently on instrument', len(self.state))
                     for item in self.state.itervalues():
                         item['reaped'] = True
+                else:
+                    log.info('discovered   %d items on instrument', len(self.state))
             log.info('sleeping     %.1fs', self.sleeptime)
             time.sleep(self.sleeptime)
         else:
             unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
             log.info('loaded %d items from persistence file, %d not reaped', len(self.state), unreaped_cnt)
-            log.info('delete persistence file to re-reap everything')
+            log.info('*** delete persistence file to reset ***')
 
     def __build_reap_queue(self, new_state):
         reap_queue = []
-        for _id, item in new_state.iteritems():
-            state_item = self.state.pop(_id, None)
-            if state_item:
-                item['reaped'] = state_item['reaped']
-                item['failures'] = state_item['failures']
-                if not item['reaped'] and item['state'] == state_item['state']:
-                    reap_queue.append((_id, item))
-                elif item['state'] != state_item['state']:
-                    item['reaped'] = False
-                    log.info('monitoring   ' + self.state_str(_id, item['state']))
+        for _id, new_item in new_state.iteritems():
+            item = self.state.get(_id)
+            if item:
+                new_item['reaped'] = item['reaped']
+                new_item['failures'] = item['failures']
+                if not item['reaped'] and new_item['state'] == item['state']:
+                    reap_queue.append((_id, new_item))  # TODO avoid weird tuples, maybe include id in item
+                elif new_item['state'] != item['state']:
+                    new_item['reaped'] = False
+                    log.info('monitoring   ' + self.state_str(_id, new_item['state']))
             else:
-                log.info('discovered   ' + self.state_str(_id, item['state']))
+                log.info('discovered   ' + self.state_str(_id, new_item['state']))
         return reap_queue
 
-    def __prune_stale_state(self, new_state, reap_start):
-        for _id, item in self.state.iteritems():  # retain absent, but recently seen, items
-            if item['lastseen'] + self.graceperiod > reap_start:
-                if not item.get('retained', False):
-                    item['retained'] = True
-                    log.info('retaining    %s', _id)
-                new_state[_id] = item
-            else:
-                log.info('purging      %s', _id)
+    def __prune_stale_state(self, reap_start):
+        for _id in [_id for _id, item in self.state.iteritems() if item['lastseen'] + self.graceperiod < reap_start]:
+            log.info('purging      %s', _id)
+            self.state.pop(_id)
 
     def __process_reap_queue(self, reap_queue):
         reap_queue_len = len(reap_queue)
@@ -176,8 +173,9 @@ class Reaper(object):
             reap_start = datetime.datetime.utcnow()
             if new_state is not None:
                 reap_queue = self.__build_reap_queue(new_state)
-                self.__prune_stale_state(new_state, reap_start)
-                self.persistent_state = self.state = new_state
+                self.state.update(new_state)
+                self.__prune_stale_state(reap_start)
+                self.persistent_state = self.state
                 self.__process_reap_queue(reap_queue)
                 unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
                 log.info('monitoring   %d items, %d not reaped', len(self.state), unreaped_cnt)
