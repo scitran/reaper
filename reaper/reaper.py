@@ -83,17 +83,25 @@ class Reaper(object):
         # pylint: disable=missing-docstring
         pass
 
+    def __get_instrument_state(self):
+        query_start = datetime.datetime.utcnow()
+        state = self.instrument_query()
+        if state is None:
+            log.warning('unable to retrieve instrument state')
+        else:
+            log.info('query time   %.1fs', (datetime.datetime.utcnow() - query_start).total_seconds())
+        return state
+
     def __set_initial_state(self):
         # pylint: disable=missing-docstring
         log.info('initializing ' + self.__class__.__name__ + '...')
         self.state = self.persistent_state
         if not self.state:
-            query_start = datetime.datetime.utcnow()
-            self.state = self.instrument_query()
+            self.state = self.__get_instrument_state()
             if self.state is None:
-                log.warning('unable to retrieve instrument state')
+                log.critical('cannot continue without instrument state')
+                sys.exit(1)
             else:
-                log.info('query time   %.1fs', (datetime.datetime.utcnow() - query_start).total_seconds())
                 self.persistent_state = self.state
                 if self.ignore_existing:
                     log.info('ignoring     %d items currently on instrument', len(self.state))
@@ -106,6 +114,56 @@ class Reaper(object):
             log.info('loaded %d items from persistence file, %d not reaped', len(self.state), unreaped_cnt)
             log.info('delete persistence file to re-reap everything')
 
+    def __build_reap_queue(self, new_state):
+        reap_queue = []
+        for _id, item in new_state.iteritems():
+            state_item = self.state.pop(_id, None)
+            if state_item:
+                item['reaped'] = state_item['reaped']
+                item['failures'] = state_item['failures']
+                if not item['reaped'] and item['state'] == state_item['state']:
+                    reap_queue.append((_id, item))
+                elif item['state'] != state_item['state']:
+                    item['reaped'] = False
+                    log.info('monitoring   ' + self.state_str(_id, item['state']))
+            else:
+                log.info('discovered   ' + self.state_str(_id, item['state']))
+        return reap_queue
+
+    def __prune_stale_state(self, new_state, reap_start):
+        for _id, item in self.state.iteritems():  # retain absent, but recently seen, items
+            if item['lastseen'] + self.graceperiod > reap_start:
+                if not item.get('retained', False):
+                    item['retained'] = True
+                    log.info('retaining    %s', _id)
+                new_state[_id] = item
+            else:
+                log.info('purging      %s', _id)
+
+    def __process_reap_queue(self, reap_queue):
+        reap_queue_len = len(reap_queue)
+        for i, _id_item in enumerate(reap_queue):
+            if not self.in_working_hours:
+                log.info('aborting     reap-run (off-duty)')
+                break
+            _id, item = _id_item
+            log.info('reap queue   item %d of %d', i + 1, reap_queue_len)
+            with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir:
+                item['reaped'], metadata_map = self.reap(_id, item, tempdir)  # returns True, False, None
+                if item['reaped']:
+                    item['failures'] = 0
+                    item['reaped'] = upload.upload_many(metadata_map, self.upload_targets)
+                elif item['reaped'] is None:  # mark skipped or discarded items as reaped
+                    item['reaped'] = True
+                else:
+                    item['failures'] += 1
+                    log.warning('failure      %s (%d failures)', _id, item['failures'])
+                    if item['failures'] > 9:
+                        item['reaped'] = True
+                        item['abandoned'] = True
+                        log.warning('abandoning   ' + self.state_str(_id, item['state']))
+            self.persistent_state = self.state
+
     def run(self):
         # pylint: disable=missing-docstring
         self.__set_initial_state()
@@ -114,59 +172,15 @@ class Reaper(object):
                 log.info('sleeping     %.0fs (off-duty)', OFFDUTY_SLEEPTIME)
                 time.sleep(OFFDUTY_SLEEPTIME)
                 continue
-            query_start = datetime.datetime.utcnow()
-            new_state = self.instrument_query()
+            new_state = self.__get_instrument_state()
             reap_start = datetime.datetime.utcnow()
-            log.debug('query time   %.1fs', (reap_start - query_start).total_seconds())
             if new_state is not None:
-                reap_queue = []
-                for _id, item in new_state.iteritems():
-                    state_item = self.state.pop(_id, None)
-                    if state_item:
-                        item['reaped'] = state_item['reaped']
-                        item['failures'] = state_item['failures']
-                        if not item['reaped'] and item['state'] == state_item['state']:
-                            reap_queue.append((_id, item))
-                        elif item['state'] != state_item['state']:
-                            item['reaped'] = False
-                            log.info('monitoring   ' + self.state_str(_id, item['state']))
-                    else:
-                        log.info('discovered   ' + self.state_str(_id, item['state']))
-                for _id, item in self.state.iteritems():  # retain absent, but recently seen, items
-                    if item['lastseen'] + self.graceperiod > reap_start:
-                        if not item.get('retained', False):
-                            item['retained'] = True
-                            log.info('retaining    %s', _id)
-                        new_state[_id] = item
-                    else:
-                        log.info('purging      %s', _id)
+                reap_queue = self.__build_reap_queue(new_state)
+                self.__prune_stale_state(new_state, reap_start)
                 self.persistent_state = self.state = new_state
-                reap_queue_len = len(reap_queue)
-                for i, _id_item in enumerate(reap_queue):
-                    if not self.in_working_hours:
-                        log.info('aborting     reap-run (off-duty)')
-                        break
-                    _id, item = _id_item
-                    log.info('reap queue   item %d of %d', i + 1, reap_queue_len)
-                    with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir:
-                        item['reaped'], metadata_map = self.reap(_id, item, tempdir)  # returns True, False, None
-                        if item['reaped']:
-                            item['failures'] = 0
-                            item['reaped'] = upload.upload_many(metadata_map, self.upload_targets)
-                        elif item['reaped'] is None:  # mark skipped or discarded items as reaped
-                            item['reaped'] = True
-                        else:
-                            item['failures'] += 1
-                            log.warning('failure      %s (%d failures)', _id, item['failures'])
-                            if item['failures'] > 9:
-                                item['reaped'] = True
-                                item['abandoned'] = True
-                                log.warning('abandoning   ' + self.state_str(_id, item['state']))
-                    self.persistent_state = self.state
+                self.__process_reap_queue(reap_queue)
                 unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
                 log.info('monitoring   %d items, %d not reaped', len(self.state), unreaped_cnt)
-            else:
-                log.warning('unable to retrieve instrument state')
             sleeptime = self.sleeptime - (datetime.datetime.utcnow() - reap_start).total_seconds()
             if sleeptime > 0:
                 log.info('sleeping     %.1fs', sleeptime)
