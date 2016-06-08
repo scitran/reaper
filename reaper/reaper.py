@@ -50,7 +50,7 @@ class Reaper(object):
         self.persistence_file = options.get('persistence_file')
         self.sleeptime = options.get('sleeptime') or SLEEPTIME
         self.graceperiod = datetime.timedelta(seconds=(options.get('graceperiod') or GRACEPERIOD))
-        self.reap_existing = options.get('existing') or False
+        self.ignore_existing = options.get('ignore_existing') or False
         self.tempdir = options.get('tempdir')
         self.timezone = options.get('timezone')
         self.working_hours = options.get('workinghours')
@@ -83,29 +83,32 @@ class Reaper(object):
         # pylint: disable=missing-docstring
         pass
 
-    def run(self):
-        # pylint: disable=missing-docstring,too-many-branches,too-many-statements
+    def __set_initial_state(self):
+        # pylint: disable=missing-docstring
         log.info('initializing ' + self.__class__.__name__ + '...')
-        if self.reap_existing:
-            self.state = {}
-        else:
-            self.state = self.persistent_state
-            if self.state:
-                unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
-                log.info('loaded       %d items from persistence file, %d not reaped', len(self.state), unreaped_cnt)
+        self.state = self.persistent_state
+        if not self.state:
+            query_start = datetime.datetime.utcnow()
+            self.state = self.instrument_query()
+            if self.state is None:
+                log.warning('unable to retrieve instrument state')
             else:
-                query_start = datetime.datetime.utcnow()
-                self.state = self.instrument_query()
-                if self.state is not None:
-                    log.info('query time   %.1fs', (datetime.datetime.utcnow() - query_start).total_seconds())
+                log.info('query time   %.1fs', (datetime.datetime.utcnow() - query_start).total_seconds())
+                self.persistent_state = self.state
+                if self.ignore_existing:
+                    log.info('ignoring     %d items currently on instrument', len(self.state))
                     for item in self.state.itervalues():
                         item['reaped'] = True
-                    self.persistent_state = self.state
-                    log.info('ignoring     %d items currently on instrument', len(self.state))
-                else:
-                    log.warning('unable to retrieve instrument state')
-                log.info('sleeping     %.1fs', self.sleeptime)
-                time.sleep(self.sleeptime)
+            log.info('sleeping     %.1fs', self.sleeptime)
+            time.sleep(self.sleeptime)
+        else:
+            unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
+            log.info('loaded %d items from persistence file, %d not reaped', len(self.state), unreaped_cnt)
+            log.info('delete persistence file to re-reap everything')
+
+    def run(self):
+        # pylint: disable=missing-docstring
+        self.__set_initial_state()
         while self.alive:
             if not self.in_working_hours:
                 log.info('sleeping     %.0fs (off-duty)', OFFDUTY_SLEEPTIME)
@@ -212,7 +215,7 @@ def main(cls, arg_parser_update=None):
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
     arg_parser.add_argument('-u', '--upload', action='append', default=[], help='upload URI')
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
-    arg_parser.add_argument('-x', '--existing', action='store_true', help='retrieve all existing data')
+    arg_parser.add_argument('-x', '--ignore_existing', action='store_true', help='ignore existing data')
     arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-k', '--workinghours', nargs=2, type=int, help='working hours in 24hr time [0 24]')
