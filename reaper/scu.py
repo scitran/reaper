@@ -104,7 +104,7 @@ class SCU(object):
             if output:
                 log.debug(output)
         if output:
-            success = re.search(r'I: Received Final Move Response \(Success\)', output)
+            success = bool(re.search(r'I: Received Final Move Response \(Success\)', output))
             img_cnt = len(os.listdir(dest_path))
         else:
             success = False
@@ -148,6 +148,7 @@ class StudyQuery(Query):
 class SeriesQuery(Query):
     # pylint: disable=missing-docstring,too-few-public-methods
     def __init__(self, **kwargs):
+        kwargs.setdefault('StudyInstanceUID', '')
         super(SeriesQuery, self).__init__('SERIES', **kwargs)
 
 

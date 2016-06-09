@@ -2,13 +2,43 @@
 
 import os
 import json
+import string
 import logging
 import zipfile
 import datetime
 
 import pytz
+import tzlocal
 import dateutil.parser
-import requests_toolbelt
+
+METADATA = [
+    # required
+    ('group', '_id'),
+    ('project', 'label'),
+    ('session', 'uid'),
+    ('acquisition', 'uid'),
+    # desired (for enhanced UI/UX)
+    ('session', 'timestamp'),
+    ('session', 'timezone'),        # auto-set
+    ('subject', 'code'),
+    ('acquisition', 'label'),
+    ('acquisition', 'timestamp'),
+    ('acquisition', 'timezone'),    # auto-set
+    ('file', 'type'),
+    # optional
+    ('session', 'label'),
+    ('session', 'operator'),
+    ('subject', 'firstname'),
+    ('subject', 'lastname'),
+    ('subject', 'firstname_hash'),  # unrecoverable, if anonymizing
+    ('subject', 'lastname_hash'),   # unrecoverable, if anonymizing
+    ('subject', 'sex'),
+    ('subject', 'age'),
+    ('acquisition', 'instrument'),
+    ('acquisition', 'measurement'),
+    ('file', 'instrument'),
+    ('file', 'measurements'),
+]
 
 logging.basicConfig(
     format='%(asctime)s %(name)16.16s:%(levelname)4.4s %(message)s',
@@ -29,6 +59,23 @@ def hrsize(size):
         if size < 1000.:
             return '%.0f%sB' % (size, suffix)
     return '%.0f%sB' % (size, 'Y')
+
+
+def object_metadata(obj, timezone, filename):
+    # pylint: disable=missing-docstring
+    metadata = {
+        'session': {'timezone': timezone},
+        'acquisition': {'timezone': timezone},
+    }
+    for md_group, md_field in METADATA:
+        value = getattr(obj, md_group + '_' + md_field, None)
+        if value is not None:
+            metadata.setdefault(md_group, {})
+            metadata[md_group][md_field] = value
+    metadata['file']['name'] = filename
+    metadata['session']['subject'] = metadata.pop('subject', {})
+    metadata['acquisition']['files'] = [metadata.pop('file', {})]
+    return metadata
 
 
 def metadata_encoder(obj):
@@ -80,11 +127,12 @@ def write_state_file(path, state):
     os.rename(temp_path, path)
 
 
-def create_archive(content, arcname, metadata, outdir=None):
+def create_archive(content, arcname, metadata=None, outdir=None):
     # pylint: disable=missing-docstring
     path = (os.path.join(outdir, arcname) if outdir else os.path.join(os.path.dirname(content), arcname)) + '.zip'
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
-        zf.comment = json.dumps(metadata, default=metadata_encoder)
+        if metadata is not None:
+            zf.comment = json.dumps(metadata, default=metadata_encoder)
         files = [(fn, os.path.join(content, fn)) for fn in os.listdir(content)]
         files.sort(key=lambda f: os.path.getsize(f[1]))
         for fn, fp in files:
@@ -92,17 +140,56 @@ def create_archive(content, arcname, metadata, outdir=None):
     return path
 
 
+def set_archive_metadata(path, metadata):
+    # pylint: disable=missing-docstring
+    with zipfile.ZipFile(path, 'a', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+        zf.comment = json.dumps(metadata, default=metadata_encoder)
+
+
+def validate_timezone(zone):
+    # pylint: disable=missing-docstring
+    if zone is None:
+        zone = tzlocal.get_localzone()
+    else:
+        try:
+            zone = pytz.timezone(zone)
+        except pytz.UnknownTimeZoneError:
+            zone = None
+    return zone
+
+
 def localize_timestamp(timestamp, timezone):
     # pylint: disable=missing-docstring
     return timezone.localize(timestamp)
 
 
-def upload_file(rs, url, filepath, metadata):
-    # pylint: disable=missing-docstring
-    filename = os.path.basename(filepath)
-    metadata_json = json.dumps(metadata, default=metadata_encoder)
-    with open(filepath, 'rb') as fd:
-        mpe = requests_toolbelt.multipart.encoder.MultipartEncoder(fields={'metadata': metadata_json, 'file': (filename, fd)})
-        r = rs.post(url, data=mpe, headers={'Content-Type': mpe.content_type})
-        if not r.ok:
-            raise Exception(str(r.status_code) + ' ' + r.reason)
+def parse_sorting_info(sort_info, default_subj_code):
+    """
+    Parse subject code, group name and project name from an id.
+
+    If the id does not contain a subject code, rely on the supplied default.
+
+    Expected formatting: subj_code@group_name/project_name
+
+    Parameters
+    ----------
+    sort_info : str
+        sort_info string from data
+    default_subj_code : str
+        subject code to use if sort_info does not contain a subject code
+
+    Returns
+    -------
+    subj_code : str
+        string of subject identifer
+    group_name : str
+        string of group name
+    project_name : str
+        string of project name
+
+    """
+    subj_code = group_name = exp_name = None
+    if sort_info is not None:
+        subj_code, _, lab_info = sort_info.strip(string.punctuation + string.whitespace).rpartition('@')
+        group_name, _, exp_name = lab_info.partition('/')
+    return subj_code or default_subj_code, group_name, exp_name
