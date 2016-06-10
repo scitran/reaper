@@ -243,6 +243,7 @@ def main(cls, arg_parser_update=None):
 
     log.setLevel(getattr(logging, args.loglevel.upper()))
 
+    args.persistence_file = os.path.abspath(args.persistence_file)
     persistence_dir = os.path.normpath(os.path.dirname(args.persistence_file))
     if not os.path.isdir(persistence_dir):
         os.makedirs(persistence_dir)
