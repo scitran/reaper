@@ -69,7 +69,11 @@ matched_series_cnt = len(matched_series)
 log.info('Found %d DICOM Series in %d Studies', matched_series_cnt, len(scu_studies))
 
 if not args.yes:
-    raw_input('Press Enter to fetch and upload all Series or Ctrl-C to abort...')
+    try:
+        raw_input('Press Enter to fetch and upload all Series or Ctrl-C to abort...')
+    except KeyboardInterrupt:
+        print
+        sys.exit(1)
 
 _, upload_function = reaper.upload.upload_function(args.uri, ('sniper', args.aec), insecure=args.insecure, upload_route='/upload/uid')
 
