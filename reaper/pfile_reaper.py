@@ -47,12 +47,13 @@ class PFileReaper(reaper.Reaper):
             filepaths = []
             log.warning(ex)
         for fp in filepaths:
+            pf = PFile(fp, self.id_field, self.opt_field)
             stats = os.stat(fp)
             state = {
                 'mod_time': datetime.datetime.utcfromtimestamp(stats.st_mtime),
                 'size': stats.st_size,
             }
-            i_state[os.path.basename(fp)] = reaper.ReaperItem(state, path=fp)
+            i_state[pf.acquisition_uid] = reaper.ReaperItem(state, path=fp)
         return i_state
 
     def reap(self, _id, item, tempdir):
