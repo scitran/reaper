@@ -14,7 +14,7 @@
 
     "bval":             [ ".bval" ],
     "bvec":             [ ".bvec" ],
-    "dicom":            [ ".dcm" ],
+    "dicom":            [ ".dcm", ".dcm.zip", ".dicom.zip" ],
     "gephysio":         [ ".gephysio.zip" ],
     "nifti":            [ ".nii.gz", ".nii" ],
     "pfile":            [ ".7.gz", ".7" ]

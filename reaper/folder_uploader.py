@@ -36,16 +36,15 @@ def guess_filetype(path):
     return filetype
 
 
-def scan_folder(path):
+def scan_folder(path, symlinks=False):
     # pylint: disable=missing-docstring
     projects = []
-    for dirpath, dirnames, filenames in os.walk(path):
+    for dirpath, dirnames, filenames in os.walk(path, followlinks=symlinks):
         filenames = [fn for fn in filenames if not fn.startswith('.')]      # ignore dotfiles
         dirnames[:] = [dn for dn in dirnames if not dn.startswith('.')]     # use slice assignment to influence walk
-        relpath = os.path.relpath(dirpath, path)
-        if relpath == '.':
+        if dirpath == path:     # skip over top-level directory
             continue
-        levels = relpath.split(os.sep)
+        levels = os.path.relpath(dirpath, path).split(os.sep)
         level_cnt = len(levels)
         files = []
         if level_cnt == 1:      # group
@@ -92,8 +91,11 @@ def tweak_labels(projects):
 
 
 def print_upload_summary(projects):
-    # pylint: disable=missing-docstring,unused-argument
-    pass
+    # pylint: disable=missing-docstring
+    group_cnt = len(set([proj['group'] for proj in projects]))
+    project_cnt = len(projects)
+    session_cnt = sum([len(proj['sessions']) for proj in projects])
+    log.info('Found %d Session(s) in %d Project(s) in %d Group(s)', session_cnt, project_cnt, group_cnt)
 
 
 def file_metadata(f, **kwargs):
@@ -142,8 +144,8 @@ def process(projects, upload_func):
                 for f in acquisition['packfiles']:
                     with tempfile.TemporaryDirectory() as tempdir:
                         log.info(file_str, 'Packaging', f['type'], f['path'])
-                        arcname = acquisition['label'] + '_' + f['type']
-                        fp = util.create_archive(f['path'], arcname, metadata, tempdir)
+                        arcname = acquisition['label'] + '.' + f['type']
+                        fp = util.create_archive(f['path'], arcname, None, tempdir)
                         metadata['acquisition']['files'] = [file_metadata(f, name=os.path.basename(fp))]
                         log.info(file_str, 'Uploading', f['type'], f['path'])
                         upload_func(fp, metadata)
@@ -156,13 +158,14 @@ def main():
     arg_parser.add_argument('path', help='path to reap')
     arg_parser.add_argument('uri', help='API URL')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
-    arg_parser.add_argument('-u', '--unattended', action='store_true', help='do not stop for user confirmation')
+    arg_parser.add_argument('-y', '--yes', action='store_true', help='do not prompt to continue')
     arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
+    arg_parser.add_argument('-s', '--symlinks', action='store_true', help='follow symbolic links that resolve to directories')
     arg_parser.add_argument('--oauth', action='store_true', help='read OAuth token from ' + OAUTH_TOKEN_VAR)
     arg_parser.add_argument('--root', action='store_true', help='send API requests as site admin')
 
     args = arg_parser.parse_args()
-    args.url = args.url.strip('/')
+    args.uri = args.uri.strip('/')
 
     log.setLevel(getattr(logging, args.loglevel.upper()))
     log.debug(args)
@@ -172,13 +175,19 @@ def main():
         if not auth_token:
             log.critical(OAUTH_TOKEN_VAR + ' empty or undefined')
             sys.exit(1)
+    else:
+        auth_token = None
 
     log.info('Inspecting  %s', args.path)
-    projects = scan_folder(args.path)
+    projects = scan_folder(args.path, args.symlinks)
     projects = tweak_labels(projects)
-    if not args.unattended:
+    if not args.yes:
         print_upload_summary(projects)
-        # wait for user confirmation
+        try:
+            raw_input('\nPress Enter to process and upload all data or Ctrl-C to abort...')
+        except KeyboardInterrupt:
+            print
+            sys.exit(1)
 
     upload_func = upload.upload_function(args.uri, ('importer', 'admin import'), args.root, auth_token, args.insecure)
     try:
