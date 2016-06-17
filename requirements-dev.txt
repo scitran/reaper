@@ -1,2 +1,4 @@
 pep8
 pylint
+
+git+https://github.com/gsfr/httpbin.git@term-handler
