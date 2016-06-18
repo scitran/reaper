@@ -100,9 +100,22 @@ def __request_session(client_info, root=False, secret=None, auth_token=None, ins
     return rs
 
 
-def __http_upload(uri, client_info, root, secret, auth_token, insecure):
+def __http_upload(url, client_info, root, secret, auth_token, insecure):
     # pylint: disable=missing-docstring
     http_session = __request_session(client_info, root, secret, auth_token, insecure)
+    upload_url = url + '/upload/label'
+
+    def request(method, route, **kwargs):
+        try:
+            r = http_session.request(method, url + route, **kwargs)
+        except requests.exceptions.ConnectionError as ex:
+            log.error('error        %s', ex)
+            return False
+        if r.ok:
+            return True
+        else:
+            log.warning('failure      %s %s', r.status_code, r.reason)
+            return False
 
     def upload(filepath, metadata):
         filename = os.path.basename(filepath)
@@ -110,7 +123,7 @@ def __http_upload(uri, client_info, root, secret, auth_token, insecure):
         with open(filepath, 'rb') as fd:
             mpe = requests_toolbelt.multipart.encoder.MultipartEncoder(fields={'metadata': metadata_json, 'file': (filename, fd)})
             try:
-                r = http_session.post(uri, data=mpe, headers={'Content-Type': mpe.content_type})
+                r = http_session.post(upload_url, data=mpe, headers={'Content-Type': mpe.content_type})
             except requests.exceptions.ConnectionError as ex:
                 log.error('error        %s: %s', filename, ex)
                 return False
@@ -119,7 +132,8 @@ def __http_upload(uri, client_info, root, secret, auth_token, insecure):
             else:
                 log.warning('failure      %s: %s %s', filename, r.status_code, r.reason)
                 return False
-    return upload
+
+    return request, upload
 
 
 def __s3_upload(filename, filepath, metadata, digest, uri):
