@@ -77,7 +77,7 @@ def scan_folder(path, symlinks=False):
             sys.exit(1)
         for f in files:
             f['type'] = guess_filetype(f['path'])
-    return projects
+    return list(set([proj['group'] for proj in projects])), projects
 
 
 def tweak_labels(projects):
@@ -105,6 +105,16 @@ def file_metadata(f, **kwargs):
         md['type'] = f['type']
     md.update(kwargs)
     return md
+
+
+def upsert_groups(groups, api_request):
+    # pylint: disable=missing-docstring
+    for group in groups:
+        success = api_request('post', '/groups', json={'_id': group.lower()})
+        if success:
+            log.info('Upserted group ' + group)
+        else:
+            log.error('Failed to upsert group ' + group + '. Trying to proceed anyway.')
 
 
 def process(projects, upload_func):
@@ -179,7 +189,7 @@ def main():
         auth_token = None
 
     log.info('Inspecting  %s', args.path)
-    projects = scan_folder(args.path, args.symlinks)
+    groups, projects = scan_folder(args.path, args.symlinks)
     projects = tweak_labels(projects)
     if not args.yes:
         print_upload_summary(projects)
@@ -189,8 +199,10 @@ def main():
             print
             sys.exit(1)
 
-    upload_func = upload.upload_function(args.uri, ('importer', 'admin import'), args.root, auth_token, args.insecure)
+    client_info = ('importer', 'admin import')
+    api_request, upload_func = upload.upload_function(args.uri, client_info, args.root, auth_token, args.insecure)
     try:
+        upsert_groups(groups, api_request)
         process(projects, upload_func)
     # pylint: disable=broad-except
     except Exception as ex:
