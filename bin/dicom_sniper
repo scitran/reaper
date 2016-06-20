@@ -24,6 +24,7 @@ arg_parser.add_argument('aet', help='local AE title')
 arg_parser.add_argument('aec', help='remote AE title')
 arg_parser.add_argument('uri', help='upload URI')
 arg_parser.add_argument('-A', '--no-anonymize', dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')
+arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
 arg_parser.add_argument('-k', '--query', nargs=2, action='append', default=[], help='query tuple')
 arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
 arg_parser.add_argument('-y', '--yes', action='store_true', help='do not prompt to continue')
@@ -48,9 +49,20 @@ matched_series = {}
 for study in scu_studies:
     scu_series = scu_.find(reaper.scu.SeriesQuery(**reaper.scu.SCUQuery(StudyInstanceUID=study.StudyInstanceUID)))
     for series in scu_series:
+        imagesInSeries = 0
+        if series.NumberOfSeriesRelatedInstances is None:
+            image_query_params = reaper.scu.QUERY_TEMPLATE.copy()
+            image_query_params['SeriesInstanceUID'] = series['SeriesInstanceUID']
+            image_query_resp = scu_.find(reaper.scu.ImageQuery(**image_query_params))
+            imagesInSeries = 0
+            for i in image_query_resp:
+                imagesInSeries = imagesInSeries + 1
+        else:
+            imagesInSeries = series.NumberOfSeriesRelatedInstances
+
         matched_series[series.SeriesInstanceUID] = {
             'study_uid': study.StudyInstanceUID,
-            'image_cnt': int(series.NumberOfSeriesRelatedInstances),
+            'image_cnt': int(imagesInSeries),
             'success': False,
         }
 matched_series_cnt = len(matched_series)
@@ -59,7 +71,7 @@ log.info('Found %d DICOM Series in %d Studies', matched_series_cnt, len(scu_stud
 if not args.yes:
     raw_input('Press Enter to fetch and upload all Series or Ctrl-C to abort...')
 
-upload_function = reaper.upload.upload_function(args.uri, ('sniper', args.aec))
+_, upload_function = reaper.upload.upload_function(args.uri, ('sniper', args.aec), insecure=args.insecure, upload_route='/upload/uid')
 
 for series_uid, series_info in matched_series.iteritems():
     with tempfile.TemporaryDirectory() as tempdir:

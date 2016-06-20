@@ -66,12 +66,12 @@ def metadata_upload(filepath, metadata, upload_func):
     return success
 
 
-def upload_function(uri, client_info, root=False, auth_token=None, insecure=False):
+def upload_function(uri, client_info, root=False, auth_token=None, insecure=False, upload_route='/upload/label'):
     # pylint: disable=missing-docstring
     """Helper to get an appropriate upload function based on protocol"""
     if uri.startswith('http://') or uri.startswith('https://'):
         uri, _, secret = uri.partition('?secret=')
-        return __http_upload(uri, client_info, root, secret, auth_token, insecure)
+        return __http_upload(uri, client_info, root, secret, auth_token, insecure, upload_route)
     elif uri.startswith('s3://'):
         return __s3_upload
     elif uri.startswith('file://'):
@@ -100,10 +100,9 @@ def __request_session(client_info, root=False, secret=None, auth_token=None, ins
     return rs
 
 
-def __http_upload(url, client_info, root, secret, auth_token, insecure):
+def __http_upload(url, client_info, root, secret, auth_token, insecure, upload_route):
     # pylint: disable=missing-docstring
     http_session = __request_session(client_info, root, secret, auth_token, insecure)
-    upload_url = url + '/upload/label'
 
     def request(method, route, **kwargs):
         try:
@@ -123,7 +122,7 @@ def __http_upload(url, client_info, root, secret, auth_token, insecure):
         with open(filepath, 'rb') as fd:
             mpe = requests_toolbelt.multipart.encoder.MultipartEncoder(fields={'metadata': metadata_json, 'file': (filename, fd)})
             try:
-                r = http_session.post(upload_url, data=mpe, headers={'Content-Type': mpe.content_type})
+                r = http_session.post(url + upload_route, data=mpe, headers={'Content-Type': mpe.content_type})
             except requests.exceptions.ConnectionError as ex:
                 log.error('error        %s: %s', filename, ex)
                 return False
