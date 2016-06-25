@@ -55,8 +55,8 @@ pip install -e reaper
 
 ```
 AEC=scanner; HOST=host; PORT=port
-findscu --verbose -S -aet reaper -aec $AEC -k QueryRetrieveLevel="STUDY"  -k StudyDate="" $HOST $PORT
-findscu --verbose -S -aet reaper -aec $AEC -k QueryRetrieveLevel="SERIES" -k StudyDate="" $HOST $PORT
+findscu --verbose -S -aet reaper -aec $AEC -k QueryRetrieveLevel="STUDY" -k StudyInstanceUID="" $HOST $PORT
+findscu --verbose -S -aet reaper -aec $AEC -k QueryRetrieveLevel="SERIES" -k StudyInstanceUID="" -k SeriesInstanceUID="" $HOST $PORT
 ```
 
 
