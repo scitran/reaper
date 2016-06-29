@@ -276,7 +276,7 @@ def main(cls, arg_parser_update=None):
     for uri in args.upload:
         try:
             reaper.upload_targets.append(
-                upload.upload_function(uri, ('reaper', reaper.id_), insecure=args.insecure)
+                upload.upload_function(uri, ('reaper', reaper.id_), insecure=args.insecure, upload_route='/upload/uid')[1]
             )
         except ValueError as ex:
             log.error(str(ex))
