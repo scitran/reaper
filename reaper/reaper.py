@@ -46,6 +46,7 @@ class Reaper(object):
         self.opt = None
         self.opt_value = None
         self.upload_targets = []
+        self.unreaped_cnt = 0
 
         self.persistence_file = options.get('persistence_file')
         self.sleeptime = options.get('sleeptime') or SLEEPTIME
@@ -54,6 +55,7 @@ class Reaper(object):
         self.tempdir = options.get('tempdir')
         self.timezone = options.get('timezone')
         self.working_hours = options.get('workinghours')
+        self.oneshot = options.get('oneshot')
 
         if options['opt_in']:
             self.opt = 'in'
@@ -177,8 +179,10 @@ class Reaper(object):
                 self.__prune_stale_state(reap_start)
                 self.persistent_state = self.state
                 self.__process_reap_queue(reap_queue)
-                unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
-                log.info('monitoring   %d items, %d not reaped', len(self.state), unreaped_cnt)
+                self.unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
+                log.info('monitoring   %d items, %d not reaped', len(self.state), self.unreaped_cnt)
+            if self.oneshot:
+                break
             sleeptime = self.sleeptime - (datetime.datetime.utcnow() - reap_start).total_seconds()
             if sleeptime > 0:
                 log.info('sleeping     %.1fs', sleeptime)
@@ -231,6 +235,7 @@ def main(cls, arg_parser_update=None):
     arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-k', '--workinghours', nargs=2, type=int, help='working hours in 24hr time [0 24]')
+    arg_parser.add_argument('-o', '--oneshot', action='store_true', help='break out of runloop after one iteration (for testing)')
 
     arg_parser.add_argument('--id-field', default='PatientID', help='DICOM field for id info [PatientID]')
     opt_group = arg_parser.add_mutually_exclusive_group()
@@ -277,4 +282,6 @@ def main(cls, arg_parser_update=None):
     signal.signal(signal.SIGTERM, term_handler)
 
     reaper.run()
+
+    sys.exit(reaper.unreaped_cnt > 0)
     log.warning('process halted')

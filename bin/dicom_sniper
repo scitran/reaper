@@ -49,20 +49,12 @@ matched_series = {}
 for study in scu_studies:
     scu_series = scu_.find(reaper.scu.SeriesQuery(**reaper.scu.SCUQuery(StudyInstanceUID=study.StudyInstanceUID)))
     for series in scu_series:
-        imagesInSeries = 0
         if series.NumberOfSeriesRelatedInstances is None:
-            image_query_params = reaper.scu.QUERY_TEMPLATE.copy()
-            image_query_params['SeriesInstanceUID'] = series['SeriesInstanceUID']
-            image_query_resp = scu_.find(reaper.scu.ImageQuery(**image_query_params))
-            imagesInSeries = 0
-            for i in image_query_resp:
-                imagesInSeries = imagesInSeries + 1
-        else:
-            imagesInSeries = series.NumberOfSeriesRelatedInstances
-
+            scu_images = scu_.find(reaper.scu.ImageQuery(**reaper.scu.SCUQuery(SeriesInstanceUID=series.SeriesInstanceUID)))
+            series.NumberOfSeriesRelatedInstances = len(scu_images)
         matched_series[series.SeriesInstanceUID] = {
             'study_uid': study.StudyInstanceUID,
-            'image_cnt': int(imagesInSeries),
+            'image_cnt': int(series.NumberOfSeriesRelatedInstances),
             'success': False,
         }
 matched_series_cnt = len(matched_series)

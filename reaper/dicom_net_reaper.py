@@ -25,14 +25,20 @@ class DicomNetReaper(reaper.Reaper):
 
     def instrument_query(self):
         i_state = {}
-        scu_resp = self.scu.find(scu.SeriesQuery(**scu.SCUQuery()))
-        for r in scu_resp:
+        scu_series = self.scu.find(scu.SeriesQuery(**scu.SCUQuery()))
+        for series in scu_series:
+            if series['NumberOfSeriesRelatedInstances'] is None:
+                scu_images = self.scu.find(scu.ImageQuery(**scu.SCUQuery(SeriesInstanceUID=series.SeriesInstanceUID)))
+                series['NumberOfSeriesRelatedInstances'] = len(scu_images)
+            if self.opt and series[self.opt_field] is None:
+                scu_studies = self.scu.find(scu.StudyQuery(**scu.SCUQuery(StudyInstanceUID=series.StudyInstanceUID)))
+                series[self.opt_field] = scu_studies[0][self.opt_field]
             state = {
-                'images': int(r['NumberOfSeriesRelatedInstances']),
-                '_id': r[self.id_field],
-                'opt': r[self.opt_field] if self.opt is not None else None,
+                'images': int(series['NumberOfSeriesRelatedInstances']),
+                '_id': series[self.id_field],
+                'opt': series[self.opt_field] if self.opt is not None else None,
             }
-            i_state[r['SeriesInstanceUID']] = reaper.ReaperItem(state)
+            i_state[series['SeriesInstanceUID']] = reaper.ReaperItem(state)
         return i_state or None  # TODO should return None only on communication error
 
     def reap(self, _id, item, tempdir):

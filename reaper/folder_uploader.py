@@ -175,7 +175,6 @@ def main():
     arg_parser.add_argument('--root', action='store_true', help='send API requests as site admin')
 
     args = arg_parser.parse_args()
-    args.uri = args.uri.strip('/')
 
     log.setLevel(getattr(logging, args.loglevel.upper()))
     log.debug(args)
@@ -200,7 +199,7 @@ def main():
             sys.exit(1)
 
     client_info = ('importer', 'admin import')
-    api_request, upload_func = upload.upload_function(args.uri, client_info, args.root, auth_token, args.insecure)
+    api_request, upload_func = upload.upload_function(args.uri, client_info, args.root, auth_token, args.insecure, '/upload/label')
     try:
         upsert_groups(groups, api_request)
         process(projects, upload_func)

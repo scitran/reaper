@@ -36,7 +36,7 @@ def pkg_series(_id, path, id_field, opt_field=None, anonymize=False, timezone=No
             filename = os.path.basename(filepath)
             if filename.startswith('(none)'):
                 filename = filename.replace('(none)', 'NA')
-            file_time = int(dcm.acquisition_timestamp.strftime('%s'))
+            file_time = max(int(dcm.acquisition_timestamp.strftime('%s')), 315561600)  # zip can't handle < 1980
             os.utime(filepath, (file_time, file_time))  # correct timestamps
             os.rename(filepath, '%s.dcm' % os.path.join(arcdir_path, filename))
         arc_path = util.create_archive(arcdir_path, dir_name)
