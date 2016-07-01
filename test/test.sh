@@ -8,6 +8,9 @@ cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 DCMTK_DB_DIR=${DCMTK_DB_DIR:-"./dcmtk_dicom_db"}
 TESTDATA_DIR=${TESTDATA_DIR:-"./testdata"}
 
+PORT=${PORT:-"8027"}
+HOST=${HOST:-"http://localhost:$PORT"}
+
 
 # Set up exit and error trap to shutdown dependencies
 shutdown() {
@@ -18,8 +21,8 @@ shutdown() {
 trap "shutdown" EXIT ERR
 
 
-# Launch dummy upload receiver  # TODO not an ideal server as it returns the entire received payload
-uwsgi --http :8000 --wsgi-file ./bin/dummy_upload_receiver.wsgi &
+# Launch dummy upload receiver
+uwsgi --http :$PORT --wsgi-file ./test/upload_receiver.wsgi --master --die-on-term &
 RECEIVER_PID=$!
 
 
@@ -58,12 +61,12 @@ DCMQRSCP_PID=$!
 
 
 # Test DICOM Sniper
-dicom_sniper -y -k StudyID "" localhost 5104 3333 REAPER DCMQRSCP http://localhost:8000
+dicom_sniper -y -k StudyID "" localhost 5104 3333 REAPER DCMQRSCP $HOST
 
 
 # Test DICOM Reaper
-dicom_net_reaper -o -s 1 $(mktemp) localhost 5104 3333 REAPER DCMQRSCP -u http://localhost:8000
+dicom_net_reaper -o -s 1 $(mktemp) localhost 5104 3333 REAPER DCMQRSCP -u $HOST
 
 
 # Test Folder Sniper
-folder_uploader -y $TESTDATA_DIR http://localhost:8000
+folder_uploader -y $TESTDATA_DIR $HOST

@@ -19,9 +19,9 @@ cache:
 install:
     - pip install .
     - pip install -U -r requirements-dev.txt
-    - ./bin/install_deps.sh
+    - ./test/install_deps.sh
 
 script:
-    - ./bin/test.sh
+    - ./test/test.sh
     - pylint --reports=no reaper
     - pep8 --max-line-length=150 --ignore=E402 reaper
