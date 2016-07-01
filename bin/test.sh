@@ -19,7 +19,7 @@ trap "shutdown" EXIT ERR
 
 
 # Launch dummy upload receiver  # TODO not an ideal server as it returns the entire received payload
-python -m httpbin.core --port 8000 &
+uwsgi --http :8000 --wsgi-file ./bin/dummy_upload_receiver.wsgi &
 RECEIVER_PID=$!
 
 
@@ -58,12 +58,12 @@ DCMQRSCP_PID=$!
 
 
 # Test DICOM Sniper
-dicom_sniper -y -k StudyID "" localhost 5104 3333 REAPER DCMQRSCP testing://
+dicom_sniper -y -k StudyID "" localhost 5104 3333 REAPER DCMQRSCP http://localhost:8000
 
 
 # Test DICOM Reaper
-dicom_net_reaper -o -s 1 testing.json localhost 5104 3333 REAPER DCMQRSCP -u testing://
+dicom_net_reaper -o -s 1 $(mktemp) localhost 5104 3333 REAPER DCMQRSCP -u http://localhost:8000
 
 
 # Test Folder Sniper
-folder_uploader -y $TESTDATA_DIR testing://
+folder_uploader -y $TESTDATA_DIR http://localhost:8000
