@@ -94,7 +94,7 @@ class PFileReaper(reaper.Reaper):
         auxfiles = [(ap, os.path.basename(ap).replace(uid_infix, '_')) for ap in auxpaths]
         log.debug('staging      %s%s', _id, ', ' + ', '.join([af[1] for af in auxfiles]) if auxfiles else '')
 
-        reap_path = os.path.join(tempdir, pf.acquisition_uid + '_' + FILETYPE)
+        reap_path = os.path.join(tempdir, pf.acquisition_uid + '.' + FILETYPE)
         os.mkdir(reap_path)
 
         os.symlink(item['path'], os.path.join(reap_path, os.path.basename(item['path'])))
