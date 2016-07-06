@@ -69,4 +69,4 @@ dicom_reaper -o -s 1 $(mktemp) localhost 5104 3333 REAPER DCMQRSCP -u $HOST
 
 
 # Test Folder Sniper
-folder_uploader -y $TESTDATA_DIR $HOST
+folder_sniper -y $TESTDATA_DIR $HOST
