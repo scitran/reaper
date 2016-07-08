@@ -14,7 +14,7 @@ from . import util
 from . import upload
 from . import tempdir as tempfile
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('reaper')
 
 SLEEPTIME = 60
 GRACEPERIOD = 86400

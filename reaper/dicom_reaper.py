@@ -25,21 +25,30 @@ class DicomNetReaper(reaper.Reaper):
 
     def instrument_query(self):
         i_state = {}
+        scu_studies = None
         scu_series = self.scu.find(scu.SeriesQuery(**scu.SCUQuery()))
+        if scu_series is None:
+            return None
         for series in scu_series:
             if series['NumberOfSeriesRelatedInstances'] is None:
                 scu_images = self.scu.find(scu.ImageQuery(**scu.SCUQuery(SeriesInstanceUID=series.SeriesInstanceUID)))
+                if scu_images is None:
+                    return None
                 series['NumberOfSeriesRelatedInstances'] = len(scu_images)
             if self.opt and series[self.opt_field] is None:
-                scu_studies = self.scu.find(scu.StudyQuery(**scu.SCUQuery(StudyInstanceUID=series.StudyInstanceUID)))
-                series[self.opt_field] = scu_studies[0][self.opt_field]
+                if scu_studies is None:
+                    scu_studies = self.scu.find(scu.StudyQuery(**scu.SCUQuery()))
+                    if scu_studies is None:
+                        return None
+                    scu_studies = {study.StudyInstanceUID: study for study in scu_studies}
+                series[self.opt_field] = scu_studies[series.StudyInstanceUID][self.opt_field]
             state = {
                 'images': int(series['NumberOfSeriesRelatedInstances']),
                 '_id': series[self.id_field],
                 'opt': series[self.opt_field] if self.opt is not None else None,
             }
             i_state[series['SeriesInstanceUID']] = reaper.ReaperItem(state)
-        return i_state or None  # TODO should return None only on communication error
+        return i_state
 
     def reap(self, _id, item, tempdir):
         if item['state']['images'] == 0:
