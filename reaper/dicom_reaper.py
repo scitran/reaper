@@ -26,7 +26,7 @@ class DicomNetReaper(reaper.Reaper):
     def instrument_query(self):
         i_state = {}
         scu_studies = None
-        scu_series = self.scu.find(scu.SeriesQuery(**scu.SCUQuery(**{self.id_field : ''})))
+        scu_series = self.scu.find(scu.SeriesQuery(**scu.SCUQuery(**{self.id_field: ''})))
         if scu_series is None:
             return None
         for series in scu_series:
