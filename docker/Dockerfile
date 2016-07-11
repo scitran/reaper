@@ -41,3 +41,9 @@ COPY reaper /var/scitran/code/reaper/reaper/
 COPY LICENSE setup.py /var/scitran/code/reaper/
 
 RUN pip install --upgrade -e /var/scitran/code/reaper
+
+
+# Inject build information into image
+ARG BRANCH_LABEL=NULL
+ARG COMMIT_HASH=0
+LABEL io.github.scitran.branch="${BRANCH_LABEL}" io.github.scitran.commit-hash="${COMMIT_HASH}"
