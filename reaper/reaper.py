@@ -237,7 +237,7 @@ def main(cls, arg_parser_update=None):
     arg_parser.add_argument('-k', '--workinghours', nargs=2, type=int, help='working hours in 24hr time [0 24]')
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='break out of runloop after one iteration (for testing)')
 
-    arg_parser.add_argument('--id-field', default='PatientID', help='DICOM field for id info [PatientID]')
+    arg_parser.add_argument('--id-field', default='PatientID', help='DICOM field for id info [PatientID] patterned as subject_id@group_id/project_id')
     opt_group = arg_parser.add_mutually_exclusive_group()
     opt_group.add_argument('--opt-in', nargs=2, help='opt-in field and value')
     opt_group.add_argument('--opt-out', nargs=2, help='opt-out field and value')
