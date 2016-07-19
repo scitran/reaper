@@ -45,7 +45,7 @@ class DicomNetReaper(reaper.Reaper):
                     if scu_studies is None:
                         return None
                     scu_studies = {study.StudyInstanceUID: study for study in scu_studies}
-                series[self.opt_key] = scu_studies[series.StudyInstanceUID][self.opt_key]
+                series[self.opt_key] = scu_studies.get(series.StudyInstanceUID, {}).get(self.opt_key)
             state = {
                 'images': int(series['NumberOfSeriesRelatedInstances']),
                 '_id': series[self.map_key],
