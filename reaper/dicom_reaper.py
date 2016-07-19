@@ -20,13 +20,17 @@ class DicomNetReaper(reaper.Reaper):
         super(DicomNetReaper, self).__init__(self.scu.aec, options)
         self.anonymize = options.get('anonymize')
 
+        self.query_tags = {self.id_field: ''}
+        if self.opt_field is not None:
+            self.query_tags[self.opt_field] = ''
+
     def state_str(self, _id, state):
         return '%s (%s)' % (_id, ', '.join(['%s %s' % (v, k or 'null') for k, v in state.iteritems()]))
 
     def instrument_query(self):
         i_state = {}
         scu_studies = None
-        scu_series = self.scu.find(scu.SeriesQuery(**scu.SCUQuery(**_get_dicom_tags_of_interest)))
+        scu_series = self.scu.find(scu.SeriesQuery(**scu.SCUQuery(**self.query_tags)))
         if scu_series is None:
             return None
         for series in scu_series:
@@ -37,7 +41,7 @@ class DicomNetReaper(reaper.Reaper):
                 series['NumberOfSeriesRelatedInstances'] = len(scu_images)
             if self.opt and series[self.opt_field] is None:
                 if scu_studies is None:
-                    scu_studies = self.scu.find(scu.StudyQuery(**scu.SCUQuery(**_get_dicom_tags_of_interest())))
+                    scu_studies = self.scu.find(scu.StudyQuery(**scu.SCUQuery(**self.query_tags)))
                     if scu_studies is None:
                         return None
                     scu_studies = {study.StudyInstanceUID: study for study in scu_studies}
@@ -73,12 +77,6 @@ class DicomNetReaper(reaper.Reaper):
             return True, metadata_map
         else:
             return False, {}
-
-    def _get_dicom_tags_of_interest(self):
-        tags_of_interest = {self.id_field: ''}
-        if self.opt_field is not None:
-            tags_of_interest[self.opt_field] = ''
-        return tags_of_interest
 
 
 def update_arg_parser(ap):
