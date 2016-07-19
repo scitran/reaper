@@ -47,7 +47,7 @@ class PFileReaper(reaper.Reaper):
             filepaths = []
             log.warning(ex)
         for fp in filepaths:
-            pf = PFile(fp, self.id_field, self.opt_field)
+            pf = PFile(fp, self.map_key, self.opt_key)
             stats = os.stat(fp)
             state = {
                 'mod_time': datetime.datetime.utcfromtimestamp(stats.st_mtime),
@@ -58,7 +58,7 @@ class PFileReaper(reaper.Reaper):
 
     def reap(self, _id, item, tempdir):
         try:
-            pf = PFile(item['path'], self.id_field, self.opt_field)
+            pf = PFile(item['path'], self.map_key, self.opt_key)
         except IOError:
             log.warning('skipping     %s (disappeared or unparsable)', _id)
             return None, {}
@@ -126,15 +126,15 @@ class PFile(object):
 
     # pylint: disable=too-few-public-methods
 
-    def __init__(self, filepath, id_field, opt_field):
+    def __init__(self, filepath, map_key, opt_key):
         pf = _RawPFile(filepath)
 
-        if id_field == 'PatientID':
+        if map_key == 'PatientID':
             self._id = pf.patient_id
         else:
             self._id = None
 
-        if opt_field == 'AccessionNumber':
+        if opt_key == 'AccessionNumber':
             self.opt = pf.accession_no
         else:
             self.opt = None

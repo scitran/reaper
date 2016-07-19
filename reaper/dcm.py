@@ -17,12 +17,12 @@ GEMS_TYPE_SCREENSHOT = ['DERIVED', 'SECONDARY', 'SCREEN SAVE']
 GEMS_TYPE_VXTL = ['DERIVED', 'SECONDARY', 'VXTL STATE']
 
 
-def pkg_series(_id, path, id_field, opt_field=None, anonymize=False, timezone=None):
+def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None):
     # pylint: disable=missing-docstring
     dcm_dict = {}
     log.info('inspecting   %s', _id)
     for filepath in [os.path.join(path, filename) for filename in os.listdir(path)]:
-        dcm = DicomFile(filepath, id_field, opt_field)
+        dcm = DicomFile(filepath, map_key, opt_key)
         dcm_dict.setdefault(dcm.acq_no, []).append(filepath)
     log.info('compressing  %s%s', _id, ' (and anonymizing)' if anonymize else '')
     metadata_map = {}
@@ -32,7 +32,7 @@ def pkg_series(_id, path, id_field, opt_field=None, anonymize=False, timezone=No
         arcdir_path = os.path.join(path, '..', dir_name)
         os.mkdir(arcdir_path)
         for filepath in acq_paths:
-            dcm = DicomFile(filepath, id_field, opt_field, parse=True, anonymize=anonymize, timezone=timezone)
+            dcm = DicomFile(filepath, map_key, opt_key, parse=True, anonymize=anonymize, timezone=timezone)
             filename = os.path.basename(filepath)
             if filename.startswith('(none)'):
                 filename = filename.replace('(none)', 'NA')
@@ -55,12 +55,12 @@ class DicomFile(object):
 
     # pylint: disable=too-few-public-methods
 
-    def __init__(self, filepath, id_field, opt_field=None, parse=False, anonymize=False, timezone=None):
+    def __init__(self, filepath, map_key, opt_key=None, parse=False, anonymize=False, timezone=None):
         if not parse and anonymize:
             raise Exception('Cannot anonymize DICOM file without parsing')
         dcm = dicom.read_file(filepath, stop_before_pixels=(not anonymize))
-        self._id = dcm.get(id_field, '')
-        self.opt = dcm.get(opt_field, '') if opt_field else None
+        self._id = dcm.get(map_key, '')
+        self.opt = dcm.get(opt_key, '') if opt_key else None
         self.acq_no = str(dcm.get('AcquisitionNumber', '')) or None if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
 
         if parse:

@@ -20,9 +20,9 @@ class DicomNetReaper(reaper.Reaper):
         super(DicomNetReaper, self).__init__(self.scu.aec, options)
         self.anonymize = options.get('anonymize')
 
-        self.query_tags = {self.id_field: ''}
-        if self.opt_field is not None:
-            self.query_tags[self.opt_field] = ''
+        self.query_tags = {self.map_key: ''}
+        if self.opt_key is not None:
+            self.query_tags[self.opt_key] = ''
 
     def state_str(self, _id, state):
         return '%s (%s)' % (_id, ', '.join(['%s %s' % (v, k or 'null') for k, v in state.iteritems()]))
@@ -39,17 +39,17 @@ class DicomNetReaper(reaper.Reaper):
                 if scu_images is None:
                     return None
                 series['NumberOfSeriesRelatedInstances'] = len(scu_images)
-            if self.opt and series[self.opt_field] is None:
+            if self.opt and series[self.opt_key] is None:
                 if scu_studies is None:
                     scu_studies = self.scu.find(scu.StudyQuery(**scu.SCUQuery(**self.query_tags)))
                     if scu_studies is None:
                         return None
                     scu_studies = {study.StudyInstanceUID: study for study in scu_studies}
-                series[self.opt_field] = scu_studies[series.StudyInstanceUID][self.opt_field]
+                series[self.opt_key] = scu_studies[series.StudyInstanceUID][self.opt_key]
             state = {
                 'images': int(series['NumberOfSeriesRelatedInstances']),
-                '_id': series[self.id_field],
-                'opt': series[self.opt_field] if self.opt is not None else None,
+                '_id': series[self.map_key],
+                'opt': series[self.opt_key] if self.opt is not None else None,
             }
             i_state[series['SeriesInstanceUID']] = reaper.ReaperItem(state)
         return i_state
@@ -68,12 +68,12 @@ class DicomNetReaper(reaper.Reaper):
         success, reap_cnt = self.scu.move(scu.SeriesQuery(SeriesInstanceUID=_id), reapdir)
         log.info('reaped       %s (%d images) in %.1fs', _id, reap_cnt, (datetime.datetime.utcnow() - reap_start).total_seconds())
         if success and reap_cnt > 0:
-            df = dcm.DicomFile(os.path.join(reapdir, os.listdir(reapdir)[0]), self.id_field, self.opt_field)
+            df = dcm.DicomFile(os.path.join(reapdir, os.listdir(reapdir)[0]), self.map_key, self.opt_key)
             if not self.is_desired_item(df.opt):
                 log.info('ignoring     %s (non-matching opt-%s)', _id, self.opt)
                 return None, {}
         if success and reap_cnt == item['state']['images']:
-            metadata_map = dcm.pkg_series(_id, reapdir, self.id_field, self.opt_field, self.anonymize, self.timezone)
+            metadata_map = dcm.pkg_series(_id, reapdir, self.map_key, self.opt_key, self.anonymize, self.timezone)
             return True, metadata_map
         else:
             return False, {}
