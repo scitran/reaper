@@ -239,8 +239,8 @@ def main(cls, arg_parser_update=None):
 
     arg_parser.add_argument('--map-key', default='PatientID', help='key for mapping info [PatientID], patterned as subject@group/project')
     opt_group = arg_parser.add_mutually_exclusive_group()
-    opt_group.add_argument('--opt-in', nargs=2, help='opt-in key and value')
-    opt_group.add_argument('--opt-out', nargs=2, help='opt-out key and value')
+    opt_group.add_argument('--opt-in', nargs=2, help='opt-in key and value (case-insensitive substring match)')
+    opt_group.add_argument('--opt-out', nargs=2, help='opt-out key and value (case-insensitive substring match)')
 
     if arg_parser_update is not None:
         arg_parser = arg_parser_update(arg_parser)
