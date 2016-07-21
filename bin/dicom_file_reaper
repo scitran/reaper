@@ -1,7 +1,0 @@
-#!/usr/bin/env python
-
-# vim: filetype=python
-
-import reaper.dicom_file_reaper
-
-reaper.dicom_file_reaper.main()

@@ -3,10 +3,25 @@ language: python
 python:
     - "2.7"
 
+env:
+    global:
+        - DCMTK_VERSION="dcmtk-3.6.1_20150924"
+        - DCMTK_DB_DIR="dcmtk_dicom_db"
+        - TESTDATA_DIR="testdata"
+
+cache:
+    pip: true
+    directories:
+        - $DCMTK_VERSION
+        - $DCMTK_DB_DIR
+        - $TESTDATA_DIR
+
 install:
     - pip install .
-    - pip install -r requirements-dev.txt
+    - pip install -U -r requirements-dev.txt
+    - ./test/install_deps.sh
 
 script:
+    - ./test/test.sh
     - pylint --reports=no reaper
     - pep8 --max-line-length=150 --ignore=E402 reaper

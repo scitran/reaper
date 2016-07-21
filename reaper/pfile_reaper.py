@@ -33,7 +33,6 @@ class PFileReaper(reaper.Reaper):
         self.data_glob = os.path.join(options.get('path'), 'P?????.7')
         super(PFileReaper, self).__init__(options.get('path').strip('/').replace('/', '_'), options)
         self.reap_auxfiles = options['aux']
-        # self.peripheral_data_reapers['gephysio'] = gephysio.reap
 
     def state_str(self, _id, state):
         return '%s, [%s, %s]' % (_id, state['mod_time'].strftime(reaper.DATE_FORMAT), util.hrsize(state['size']))
@@ -48,17 +47,18 @@ class PFileReaper(reaper.Reaper):
             filepaths = []
             log.warning(ex)
         for fp in filepaths:
+            pf = PFile(fp, self.map_key, self.opt_key)
             stats = os.stat(fp)
             state = {
                 'mod_time': datetime.datetime.utcfromtimestamp(stats.st_mtime),
                 'size': stats.st_size,
             }
-            i_state[os.path.basename(fp)] = reaper.ReaperItem(state, path=fp)
+            i_state[pf.acquisition_uid] = reaper.ReaperItem(state, path=fp)
         return i_state
 
     def reap(self, _id, item, tempdir):
         try:
-            pf = PFile(item['path'], self.id_field, self.opt_field)
+            pf = PFile(item['path'], self.map_key, self.opt_key)
         except IOError:
             log.warning('skipping     %s (disappeared or unparsable)', _id)
             return None, {}
@@ -94,7 +94,7 @@ class PFileReaper(reaper.Reaper):
         auxfiles = [(ap, os.path.basename(ap).replace(uid_infix, '_')) for ap in auxpaths]
         log.debug('staging      %s%s', _id, ', ' + ', '.join([af[1] for af in auxfiles]) if auxfiles else '')
 
-        reap_path = os.path.join(tempdir, pf.acquisition_uid + '_' + FILETYPE)
+        reap_path = os.path.join(tempdir, pf.acquisition_uid + '.' + FILETYPE)
         os.mkdir(reap_path)
 
         os.symlink(item['path'], os.path.join(reap_path, os.path.basename(item['path'])))
@@ -117,7 +117,6 @@ class PFileReaper(reaper.Reaper):
             util.set_archive_metadata(filepath, metadata)
             reap_time = (datetime.datetime.utcnow() - reap_start).total_seconds()
             log.info('reaped.zip   %s [%s%s] in %.1fs', _id, pfile_size, auxfile_log_str, reap_time)
-            self.reap_peripheral_data(tempdir, pf, pf.acquisition_uid, _id)
             return True, {filepath: metadata}
 
 
@@ -127,15 +126,15 @@ class PFile(object):
 
     # pylint: disable=too-few-public-methods
 
-    def __init__(self, filepath, id_field, opt_field):
+    def __init__(self, filepath, map_key, opt_key):
         pf = _RawPFile(filepath)
 
-        if id_field == 'PatientID':
+        if map_key == 'PatientID':
             self._id = pf.patient_id
         else:
             self._id = None
 
-        if opt_field == 'AccessionNumber':
+        if opt_key == 'AccessionNumber':
             self.opt = pf.accession_no
         else:
             self.opt = None

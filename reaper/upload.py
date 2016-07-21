@@ -66,12 +66,14 @@ def metadata_upload(filepath, metadata, upload_func):
     return success
 
 
-def upload_function(uri, client_info, root=False, auth_token=None, insecure=False, upload_route='/upload/label'):
+def upload_function(uri, client_info, root=False, auth_token=None, insecure=False, upload_route=''):
     # pylint: disable=missing-docstring
     """Helper to get an appropriate upload function based on protocol"""
     if uri.startswith('http://') or uri.startswith('https://'):
         uri, _, secret = uri.partition('?secret=')
-        return __http_upload(uri, client_info, root, secret, auth_token, insecure, upload_route)
+        return __http_upload(uri.strip('/'), client_info, root, secret, auth_token, insecure, upload_route)
+    elif uri.startswith('testing://'):
+        return lambda method, route, **kwargs: True, lambda filepath, metadata: True
     elif uri.startswith('s3://'):
         return __s3_upload
     elif uri.startswith('file://'):

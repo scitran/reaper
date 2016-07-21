@@ -17,7 +17,7 @@ import shlex
 import logging
 import subprocess
 
-log = logging.getLogger('reaper.dicom.scu')
+log = logging.getLogger(__name__)
 
 RESPONSE_RE = re.compile(
     r'I: Find Response.*\n.*\n'
@@ -34,16 +34,8 @@ DICOM_CV_RE = re.compile(
 QUERY_TEMPLATE = {
     'StudyInstanceUID': '',
     'SeriesInstanceUID': '',
-    'StudyID': '',
-    'SeriesNumber': '',
-    'SeriesDate': '',
-    'SeriesTime': '',
     'NumberOfSeriesRelatedInstances': '',
     'PatientID': '',
-    'OperatorsName': '',
-    'AccessionNumber': '',
-    'AdmissionID': '',
-    'PatientComments': '',
 }
 
 
