@@ -29,7 +29,7 @@ arg_parser.add_argument('-k', '--query', nargs=2, action='append', default=[], h
 arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
 arg_parser.add_argument('-y', '--yes', action='store_true', help='do not prompt to continue')
 arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
-arg_parser.add_argument('--id-field', default='PatientID', help='DICOM field for id info [PatientID]')
+arg_parser.add_argument('--map-key', default='PatientID', help='key for mapping info [PatientID], patterned as subject@group/project')
 args = arg_parser.parse_args()
 args.query = dict(args.query)
 
@@ -78,7 +78,7 @@ for series_uid, series_info in matched_series.iteritems():
         if not series_info['success']:
             log.error('Failure      %s', series_uid)
             continue
-        metadata_map = reaper.dcm.pkg_series(series_uid, reapdir, args.id_field, None, args.anonymize, args.timezone)
+        metadata_map = reaper.dcm.pkg_series(series_uid, reapdir, args.map_key, None, args.anonymize, args.timezone)
         for filepath, metadata in metadata_map.iteritems():
             success = reaper.upload.metadata_upload(filepath, metadata, upload_function)
             if not success:
