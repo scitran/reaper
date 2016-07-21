@@ -26,7 +26,7 @@ sudo pip install -U pip setuptools wheel ipython virtualenv
 
 #### Virtualenv
 ```
-virtualenv --prompt "(reaper)" reaperenv
+virtualenv --prompt "(reaper) " reaperenv
 source reaperenv/bin/activate
 ```
 
