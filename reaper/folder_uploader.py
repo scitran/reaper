@@ -187,6 +187,10 @@ def main():
     else:
         auth_token = None
 
+    args.path = os.path.expanduser(args.path)
+    if not os.path.isdir(args.path):
+        log.error('Path        %s is not a directory or does not exist', args.path)
+        sys.exit(1)
     log.info('Inspecting  %s', args.path)
     groups, projects = scan_folder(args.path, args.symlinks)
     projects = tweak_labels(projects)
