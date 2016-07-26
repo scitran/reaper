@@ -28,4 +28,4 @@ script:
 
 after_success:
 # Split out build steps to script to avoid yml parsing issues of the commands.
-- bash ./docker/build-trigger.sh Tag "${TRAVIS_TAG}" "${DOCKERHUB_TRIGGER_URL}"
+- ./docker/build-trigger.sh Tag "${TRAVIS_TAG}" "${BUILD_TRIGGER_URL}"
