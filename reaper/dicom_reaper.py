@@ -34,7 +34,7 @@ class DicomNetReaper(reaper.Reaper):
         if scu_series is None:
             return None
         for series in scu_series:
-            if series['NumberOfSeriesRelatedInstances'] is None:
+            if not series['NumberOfSeriesRelatedInstances']:
                 scu_images = self.scu.find(scu.ImageQuery(**scu.SCUQuery(SeriesInstanceUID=series.SeriesInstanceUID)))
                 if scu_images is None:
                     return None
