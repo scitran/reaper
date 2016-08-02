@@ -67,7 +67,9 @@ class Reaper(object):
         if self.opt is not None:
             self.opt_key = options['opt_' + self.opt][0]
             self.opt_value = options['opt_' + self.opt][1].lower()
-            if not options.get('exact_opt_match'):
+            if options.get('exact_opt_match'):
+                self.opt_value = '^' + self.opt_value + '$'
+            else:
                 self.opt_value = '.*' + self.opt_value + '.*'
         self.map_key = options['map_key']
 
