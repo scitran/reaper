@@ -2,7 +2,6 @@
 
 import os
 import sys
-import json
 import logging
 import argparse
 
@@ -17,23 +16,6 @@ logging.basicConfig(
 log = logging.getLogger()
 
 OAUTH_TOKEN_VAR = 'SCITRAN_REAPER_OAUTH_TOKEN'
-
-with open(os.path.join(os.path.dirname(__file__), 'types.json')) as fd:
-    TYPE_MAP = json.load(fd)
-KNOWN_FILETYPES = {ext: filetype for filetype, extensions in TYPE_MAP.iteritems() for ext in extensions}
-
-
-def guess_filetype(path):
-    # pylint: disable=missing-docstring
-    particles = os.path.basename(path).split('.')[1:]
-    extentions = ['.' + '.'.join(particles[i:]) for i in range(len(particles))]
-    for ext in extentions:
-        filetype = KNOWN_FILETYPES.get(ext.lower())
-        if filetype:
-            break
-    else:
-        filetype = None
-    return filetype
 
 
 def scan_folder(path, symlinks=False):
@@ -75,8 +57,6 @@ def scan_folder(path, symlinks=False):
         else:
             log.critical('Folder structure too deep')
             sys.exit(1)
-        for f in files:
-            f['type'] = guess_filetype(f['path'])
     return list(set([proj['group'] for proj in projects])), projects
 
 
@@ -101,7 +81,7 @@ def print_upload_summary(projects):
 def file_metadata(f, **kwargs):
     # pylint: disable=missing-docstring
     md = {'name': os.path.basename(f['path'])}
-    if f['type'] is not None:
+    if f.get('type') is not None:
         md['type'] = f['type']
     md.update(kwargs)
     return md
@@ -120,7 +100,7 @@ def upsert_groups(groups, api_request):
 def process(projects, upload_func):
     # pylint: disable=missing-docstring
     action_str = 'Upserting %sfiles to %s'
-    file_str = '  %s %-10.10s: %s'
+    file_str = '  %s %s'
 
     for project in projects:
         group = project['group']
@@ -128,7 +108,7 @@ def process(projects, upload_func):
         metadata = {'group': {'_id': group}, 'project': {'label': project['label']}}
         log.info(action_str, '', p_label)
         for f in project['files']:
-            log.info(file_str, 'Uploading', f['type'], f['path'])
+            log.info(file_str, 'Uploading', f['path'])
             metadata['project']['files'] = [file_metadata(f)]
             upload_func(f['path'], metadata)
         metadata['project'].pop('files', [])
@@ -137,7 +117,7 @@ def process(projects, upload_func):
             log.info(action_str, '', s_label)
             metadata.update({'session': {'label': session['label'], 'subject': session['subject']}})
             for f in session['files']:
-                log.info(file_str, 'Uploading', f['type'], f['path'])
+                log.info(file_str, 'Uploading', f['path'])
                 metadata['session']['files'] = [file_metadata(f)]
                 upload_func(f['path'], metadata)
             metadata['session'].pop('files', [])
@@ -146,18 +126,18 @@ def process(projects, upload_func):
                 log.info(action_str, '', a_label)
                 metadata.update({'acquisition': {'label': acquisition['label']}})
                 for f in acquisition['files']:
-                    log.info(file_str, 'Uploading', f['type'], f['path'])
+                    log.info(file_str, 'Uploading', f['path'])
                     metadata['acquisition']['files'] = [file_metadata(f)]
                     upload_func(f['path'], metadata)
                 metadata['acquisition'].pop('files', [])
                 log.info(action_str, 'pack-', a_label)
                 for f in acquisition['packfiles']:
                     with tempfile.TemporaryDirectory() as tempdir:
-                        log.info(file_str, 'Packaging', f['type'], f['path'])
+                        log.info(file_str, 'Packaging', f['path'])
                         arcname = acquisition['label'] + '.' + f['type']
                         fp = util.create_archive(f['path'], arcname, None, tempdir)
                         metadata['acquisition']['files'] = [file_metadata(f, name=os.path.basename(fp))]
-                        log.info(file_str, 'Uploading', f['type'], f['path'])
+                        log.info(file_str, 'Uploading', f['path'])
                         upload_func(fp, metadata)
                 metadata['acquisition'].pop('files', [])
 
@@ -187,6 +167,10 @@ def main():
     else:
         auth_token = None
 
+    args.path = os.path.expanduser(args.path)
+    if not os.path.isdir(args.path):
+        log.error('Path        %s is not a directory or does not exist', args.path)
+        sys.exit(1)
     log.info('Inspecting  %s', args.path)
     groups, projects = scan_folder(args.path, args.symlinks)
     projects = tweak_labels(projects)
