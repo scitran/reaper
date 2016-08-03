@@ -22,8 +22,6 @@ class OrthancNetReaper(dicom_reaper.DicomNetReaper):
         super(OrthancNetReaper, self).__init__(options)
         self.remote_host = options.get('host')
 
-
-
     def before_reap(self, _id):
         """
         Orthanc halt incoming stores
@@ -34,7 +32,6 @@ class OrthancNetReaper(dicom_reaper.DicomNetReaper):
         with requests.Session() as rs:
             exec_script_resp = rs.post('http://{0}:8104/tools/execute-script'.format(self.remote_host), data=disable_function)
             exec_script_resp.raise_for_status()
-
 
     def after_reap_success(self, _id):
         """
@@ -53,11 +50,6 @@ class OrthancNetReaper(dicom_reaper.DicomNetReaper):
             delete_resp = rs.delete('http://{0}:8104/series/{1}'.format(self.remote_host, response_obj[0]['ID']))
             lookup_resp.raise_for_status()
 
-
-
-
-
-
     def after_reap(self, _id):
         """
         Orthanc allow incoming stores
@@ -68,7 +60,6 @@ class OrthancNetReaper(dicom_reaper.DicomNetReaper):
         with requests.Session() as rs:
             exec_script_resp = rs.post('http://{0}:8104/tools/execute-script'.format(self.remote_host), data=enable_function)
             exec_script_resp.raise_for_status()
-
 
 
 def main():

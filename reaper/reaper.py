@@ -101,7 +101,6 @@ class Reaper(object):
         # pylint: disable=missing-docstring
         pass
 
-
     def __get_instrument_state(self):
         query_start = datetime.datetime.utcnow()
         state = self.instrument_query()
@@ -179,7 +178,7 @@ class Reaper(object):
                         item['reaped'] = True
                         item['abandoned'] = True
                         log.warning('abandoning   ' + self.state_str(_id, item['state']))
-                if item['reaped'] :
+                if item['reaped']:
                     self.after_reap_success(_id)
                 self.after_reap(_id)
             self.persistent_state = self.state
