@@ -1,13 +1,8 @@
 """ SciTran Orthanc Net Reaper """
 
-import os
 import logging
-import datetime
 import requests
 
-
-from . import dcm
-from . import scu
 from . import reaper
 from . import dicom_reaper
 
@@ -48,7 +43,7 @@ class OrthancNetReaper(dicom_reaper.DicomNetReaper):
             log.info(response_obj[0]['ID'])
 
             delete_resp = rs.delete('http://{0}:8104/series/{1}'.format(self.remote_host, response_obj[0]['ID']))
-            lookup_resp.raise_for_status()
+            delete_resp.raise_for_status()
 
     def after_reap(self, _id):
         """
