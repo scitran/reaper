@@ -11,13 +11,13 @@ from . import reaper
 log = logging.getLogger('reaper.dicom')
 
 
-class DicomNetReaper(reaper.Reaper):
+class DicomReaper(reaper.Reaper):
 
-    """DicomNetReaper class"""
+    """DicomReaper class"""
 
     def __init__(self, options):
         self.scu = scu.SCU(options.get('host'), options.get('port'), options.get('return_port'), options.get('aet'), options.get('aec'))
-        super(DicomNetReaper, self).__init__(self.scu.aec, options)
+        super(DicomReaper, self).__init__(self.scu.aec, options)
         self.anonymize = options.get('anonymize')
 
         self.query_tags = {self.map_key: ''}
@@ -92,6 +92,6 @@ def update_arg_parser(ap):
     return ap
 
 
-def main():
+def main(cls=DicomReaper, arg_parser_update=update_arg_parser):
     # pylint: disable=missing-docstring
-    reaper.main(DicomNetReaper, update_arg_parser)
+    reaper.main(cls, arg_parser_update)
