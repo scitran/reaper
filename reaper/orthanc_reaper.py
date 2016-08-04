@@ -12,9 +12,11 @@ class OrthancReaper(dicom_reaper.DicomReaper):
 
     """OrthancReaper class"""
 
+    rs = requests.Session()
+
     def __init__(self, options):
         super(OrthancReaper, self).__init__(options)
-        self.orthanc_host = options.get('orthanc_host')
+        self.orthanc_uri = options.get('orthanc_uri').strip('/')
 
     def before_reap(self, _id):
         """
@@ -23,26 +25,24 @@ class OrthancReaper(dicom_reaper.DicomReaper):
         disable_function = """ function ReceivedInstanceFilter(dicom, origin)
                                error("All Stores Rejected")
                                end """
-        with requests.Session() as rs:
-            exec_script_resp = rs.post('http://{0}/tools/execute-script'.format(self.orthanc_host), data=disable_function)
-            exec_script_resp.raise_for_status()
+        r = self.rs.post(self.orthanc_uri + '/tools/execute-script', data=disable_function)
+        r.raise_for_status()
 
     def after_reap_success(self, _id):
         """
         Orthanc delete study
         """
-        with requests.Session() as rs:
-            log.info(_id)
-            lookup_resp = rs.post('http://{0}/tools/lookup'.format(self.orthanc_host), data=_id)
-            lookup_resp.raise_for_status()
-            response_obj = lookup_resp.json()
-            log.info(response_obj)
-            if len(response_obj) != 1:
-                raise Exception("Unexpected state: More than 1 series with same UID")
-            log.info(response_obj[0]['ID'])
+        log.info(_id)
+        r = self.rs.post(self.orthanc_uri + '/tools/lookup', data=_id)
+        r.raise_for_status()
+        payload = r.json()
+        log.info(payload)
+        if len(payload) != 1:
+            raise Exception("Unexpected state: More than 1 series with same UID")
+        log.info(payload[0]['ID'])
 
-            delete_resp = rs.delete('http://{0}/series/{1}'.format(self.orthanc_host, response_obj[0]['ID']))
-            delete_resp.raise_for_status()
+        r = self.rs.delete(self.orthanc_uri + '/series/' + payload[0]['ID'])
+        r.raise_for_status()
 
     def after_reap(self, _id):
         """
@@ -51,15 +51,14 @@ class OrthancReaper(dicom_reaper.DicomReaper):
         enable_function = """ function ReceivedInstanceFilter(dicom, origin)
                                return true
                                end """
-        with requests.Session() as rs:
-            exec_script_resp = rs.post('http://{0}/tools/execute-script'.format(self.orthanc_host), data=enable_function)
-            exec_script_resp.raise_for_status()
+        r = self.rs.post(self.orthanc_uri + '/tools/execute-script', data=enable_function)
+        r.raise_for_status()
 
 
 def update_arg_parser(ap):
     # pylint: disable=missing-docstring
     ap = dicom_reaper.update_arg_parser(ap)
-    ap.add_argument('orthanc_host', help='Orthanc hostname and port')
+    ap.add_argument('orthanc_uri', help='Orthanc base URI')
     return ap
 
 
