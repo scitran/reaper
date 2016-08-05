@@ -13,7 +13,7 @@ install_requires = [
 
 setup(
     name = 'reaper',
-    version = '1.0.1',
+    version = '1.0.2',
     description = 'SciTran Instrument Integration',
     author = 'Gunnar Schaefer',
     author_email = 'gsfr@stanford.edu',
