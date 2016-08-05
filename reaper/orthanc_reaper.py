@@ -16,41 +16,72 @@ class OrthancReaper(dicom_reaper.DicomReaper):
         super(OrthancReaper, self).__init__(options)
         self.orthanc_uri = options.get('orthanc_uri').strip('/')
 
+    def before_run(self):
+        """
+        Operations for before the run loop.
+        """
+        self._enable_orthanc()
+
     def before_reap(self, _id):
         """
-        Orthanc halt incoming stores
+        Operations for before the series is reaped.
         """
-        disable_function = """ function ReceivedInstanceFilter(dicom, origin)
-                               error("All Stores Rejected")
-                               end """
-        r = requests.post(self.orthanc_uri + '/tools/execute-script', data=disable_function)
-        r.raise_for_status()
+        self._disable_orthanc(_id)
 
     def after_reap_success(self, _id):
         """
-        Orthanc delete study
+        Operations after the series is reaped successfully.
         """
-        log.info(_id)
-        r = requests.post(self.orthanc_uri + '/tools/lookup', data=_id)
-        r.raise_for_status()
-        payload = r.json()
-        log.info(payload)
-        if len(payload) != 1:
-            raise Exception("Unexpected state: More than 1 series with same UID")
-        log.info(payload[0]['ID'])
-
-        r = requests.delete(self.orthanc_uri + '/series/' + payload[0]['ID'])
-        r.raise_for_status()
+        self._delete_series(_id)
 
     def after_reap(self, _id):
         """
-        Orthanc allow incoming stores
+        Operations after the series is reaped, regardless of result.
+        """
+        self._enable_orthanc()
+
+    def _enable_orthanc(self):
+        """
+        Orthanc allow all incoming stores
         """
         enable_function = """ function ReceivedInstanceFilter(dicom, origin)
-                               return true
-                               end """
+                                  return true
+                              end """
         r = requests.post(self.orthanc_uri + '/tools/execute-script', data=enable_function)
         r.raise_for_status()
+        log.debug("Orthanc Stores enabled for all series.")
+
+    def _disable_orthanc(self, _id):
+        """
+        Orthanc halt incoming stores for DICOM Series being reaped.
+        """
+        disable_function = """ function ReceivedInstanceFilter(dicom, origin)
+                                   blocking_series_uid = "{0}"
+                                   if dicom.SeriesInstanceUID == blocking_series_uid then
+                                       error("Stores blocked for SeriesInstanceUID " .. blocking_series_uid)
+                                   end
+                                   return true
+
+                               end """.format(_id)
+        r = requests.post(self.orthanc_uri + '/tools/execute-script', data=disable_function)
+        r.raise_for_status()
+        log.debug("Orthanc Stores disabled for SeriesInstanceUID %s", _id)
+
+    def _delete_series(self, _id):
+        """
+        Orthanc delete DICOM Series
+        """
+        log.debug("Requesting Orthanc ID for SeriesInstanceUID %s", _id)
+        r = requests.post(self.orthanc_uri + '/tools/lookup', data=_id)
+        r.raise_for_status()
+        payload = r.json()
+        if len(payload) != 1:
+            raise Exception("Unexpected state: More than 1 series with same UID")
+        log.debug("About to delete Orthanc ID %s", payload[0]['ID'])
+
+        r = requests.delete(self.orthanc_uri + '/series/' + payload[0]['ID'])
+        r.raise_for_status()
+        log.debug("Successfully deleted SeriesInstanceUID %s", _id)
 
 
 def update_arg_parser(ap):

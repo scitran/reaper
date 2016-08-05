@@ -89,16 +89,30 @@ class Reaper(object):
         # pylint: disable=missing-docstring
         pass
 
+    def before_run(self):
+        """
+        Operations for before the run loop.
+        """
+        pass
+
     def before_reap(self, _id):
-        # pylint: disable=missing-docstring
+        """
+        Operations for before the series is reaped.
+        """
         pass
 
     def after_reap_success(self, _id):
-        # pylint: disable=missing-docstring
+        """
+        Operations after the series is reaped successfully.
+
+        Executed before after_reap()
+        """
         pass
 
     def after_reap(self, _id):
-        # pylint: disable=missing-docstring
+        """
+        Operations after the series is reaped, regardless of result.
+        """
         pass
 
     def __get_instrument_state(self):
@@ -185,6 +199,7 @@ class Reaper(object):
 
     def run(self):
         # pylint: disable=missing-docstring
+        self.before_run()
         self.__set_initial_state()
         while self.alive:
             if not self.in_working_hours:
