@@ -1,4 +1,4 @@
-sudo: false
+sudo: required
 language: python
 python:
     - "2.7"
@@ -8,6 +8,8 @@ env:
         - DCMTK_VERSION="dcmtk-3.6.1_20150924"
         - DCMTK_DB_DIR="dcmtk_dicom_db"
         - TESTDATA_DIR="testdata"
+        - ORTHANC_VERSION="Orthanc-1.1.0"
+        - ORTHANC_BUILD="${ORTHANC_VERSION}Build"
 
 cache:
     pip: true
@@ -15,11 +17,19 @@ cache:
         - $DCMTK_VERSION
         - $DCMTK_DB_DIR
         - $TESTDATA_DIR
+        - $ORTHANC_BUILD
 
 install:
     - pip install .
     - pip install -U -r requirements-dev.txt
     - ./test/install_deps.sh
+# Orthanc requirements
+    - sudo apt-get update
+    - sudo apt-get install build-essential unzip cmake mercurial
+      uuid-dev libcurl4-openssl-dev liblua5.1-0-dev
+      libgtest-dev libpng-dev libsqlite3-dev libssl-dev libjpeg-dev
+      zlib1g-dev libdcmtk2-dev libboost1.48-all-dev libwrap0-dev
+      libcharls-dev
 
 script:
     - ./test/test.sh

@@ -7,6 +7,7 @@ cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
 DCMTK_DB_DIR=${DCMTK_DB_DIR:-"./dcmtk_dicom_db"}
 TESTDATA_DIR=${TESTDATA_DIR:-"./testdata"}
+ORTHANC_BUILD=${ORTHANC_BUILD:-"./Orthanc*Build"}
 
 PORT=${PORT:-"8027"}
 HOST=${HOST:-"http://localhost:$PORT"}
@@ -61,12 +62,20 @@ DCMQRSCP_PID=$!
 
 
 # Test DICOM Sniper
-dicom_sniper -y -k StudyID "" localhost 5104 3333 REAPER DCMQRSCP $HOST
+#dicom_sniper -y -k StudyID "" localhost 5104 3333 REAPER DCMQRSCP $HOST
 
 
 # Test DICOM Reaper
-dicom_reaper -o -s 1 $(mktemp) localhost 5104 3333 REAPER DCMQRSCP -u $HOST
+#dicom_reaper -o -s 1 $(mktemp) localhost 5104 3333 REAPER DCMQRSCP -u $HOST
 
 
 # Test Folder Sniper
-folder_sniper -y $TESTDATA_DIR $HOST
+#folder_sniper -y $TESTDATA_DIR $HOST
+
+# Test Orthanc DICOM Reaper
+"${ORTHANC_BUILD}/Orthanc" &
+ORTHANC_PID=$!
+sleep 5
+
+storescu -v -aec ORTHANC localhost 4242  $(find $TESTDATA_DIR -type d -name dicom | tail -n 1)
+orthanc_reaper -o -s 1 $(mktemp) localhost 4242 3333 REAPER ORTHANC "http://localhost:8042" -u $HOST
