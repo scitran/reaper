@@ -22,7 +22,6 @@ cache:
 install:
     - pip install .
     - pip install -U -r requirements-dev.txt
-    - ./test/install_deps.sh
 # Orthanc requirements
     - sudo apt-get update
     - sudo apt-get install build-essential unzip cmake mercurial
@@ -30,6 +29,8 @@ install:
       libgtest-dev libpng-dev libsqlite3-dev libssl-dev libjpeg-dev
       zlib1g-dev libdcmtk2-dev libboost1.48-all-dev libwrap0-dev
       libcharls-dev
+# Non-package Dep Install
+      - ./test/install_deps.sh
 
 script:
     - ./test/test.sh
