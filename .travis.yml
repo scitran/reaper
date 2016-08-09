@@ -33,8 +33,7 @@ install:
 
 script:
     - ./test/test.sh
-    - pylint --reports=no reaper
-    - pep8 --max-line-length=150 --ignore=E402 reaper
+    - ./test/lint.sh
 
 after_success:
 # Split out build steps to script to avoid yml parsing issues of the commands.
