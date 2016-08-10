@@ -77,5 +77,5 @@ DCMQRSCP_PID=$!
 ORTHANC_PID=$!
 sleep 5
 
-storescu -v -aec ORTHANC localhost 4242  $(find $TESTDATA_DIR -type d -name dicom | tail -n 1)
+storescu -v --scan-directories -aec ORTHANC localhost 4242  $(find $TESTDATA_DIR -type d -name dicom | tail -n 1)
 orthanc_reaper -o -s 1 $(mktemp) localhost 4242 3333 REAPER ORTHANC "http://localhost:8042" -u $HOST
