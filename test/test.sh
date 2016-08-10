@@ -16,7 +16,7 @@ HOST=${HOST:-"http://localhost:$PORT"}
 # Set up exit and error trap to shutdown dependencies
 shutdown() {
     echo 'Exit signal trapped'
-    kill $DCMQRSCP_PID $RECEIVER_PID
+    kill $DCMQRSCP_PID $RECEIVER_PID $ORTHANC_PID
     wait
 }
 trap "shutdown" EXIT ERR
