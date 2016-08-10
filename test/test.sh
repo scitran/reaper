@@ -73,7 +73,16 @@ DCMQRSCP_PID=$!
 #folder_sniper -y $TESTDATA_DIR $HOST
 
 # Test Orthanc DICOM Reaper
-"${ORTHANC_BUILD}/Orthanc" &
+ORTHANC_CONFIG_FILE="${ORTHANC_BUILD}/orthanc-config.json"
+cat << EOF > $ORTHANC_CONFIG_FILE
+{
+  "DicomModalities" : {
+    "reaper" : [ "REAPER", "127.0.0.1", 3333 ]
+  }
+}
+EOF
+
+"${ORTHANC_BUILD}/Orthanc" "${ORTHANC_CONFIG_FILE}" &
 ORTHANC_PID=$!
 sleep 5
 
