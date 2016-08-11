@@ -62,15 +62,15 @@ DCMQRSCP_PID=$!
 
 
 # Test DICOM Sniper
-#dicom_sniper -y -k StudyID "" localhost 5104 3333 REAPER DCMQRSCP $HOST
+dicom_sniper -y -k StudyID "" localhost 5104 3333 REAPER DCMQRSCP $HOST
 
 
 # Test DICOM Reaper
-#dicom_reaper -o -s 1 $(mktemp) localhost 5104 3333 REAPER DCMQRSCP -u $HOST
+dicom_reaper -o -s 1 $(mktemp) localhost 5104 3333 REAPER DCMQRSCP -u $HOST
 
 
 # Test Folder Sniper
-#folder_sniper -y $TESTDATA_DIR $HOST
+folder_sniper -y $TESTDATA_DIR $HOST
 
 # Test Orthanc DICOM Reaper
 ORTHANC_CONFIG_FILE="${ORTHANC_BUILD}/orthanc-config.json"
