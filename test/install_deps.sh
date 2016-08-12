@@ -25,6 +25,9 @@ if [ ! -f "${ORTHANC_BUILD}/Orthanc" ]; then
   cd "$ORTHANC_BUILD"
   cmake -DSTATIC_BUILD=ON -DCMAKE_BUILD_TYPE=Release ../$ORTHANC_VERSION
   make
+else
+  cd "$ORTHANC_BUILD"
 fi
 
+make install
 )

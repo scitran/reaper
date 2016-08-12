@@ -7,7 +7,6 @@ cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
 DCMTK_DB_DIR=${DCMTK_DB_DIR:-"./dcmtk_dicom_db"}
 TESTDATA_DIR=${TESTDATA_DIR:-"./testdata"}
-ORTHANC_BUILD=${ORTHANC_BUILD:-"./Orthanc*Build"}
 
 PORT=${PORT:-"8027"}
 HOST=${HOST:-"http://localhost:$PORT"}
@@ -73,7 +72,7 @@ dicom_reaper -o -s 1 $(mktemp) localhost 5104 3333 REAPER DCMQRSCP -u $HOST
 folder_sniper -y $TESTDATA_DIR $HOST
 
 # Test Orthanc DICOM Reaper
-ORTHANC_CONFIG_FILE="${ORTHANC_BUILD}/orthanc-config.json"
+ORTHANC_CONFIG_FILE="orthanc-config.json"
 cat << EOF > $ORTHANC_CONFIG_FILE
 {
   "DicomModalities" : {
@@ -82,7 +81,7 @@ cat << EOF > $ORTHANC_CONFIG_FILE
 }
 EOF
 
-"${ORTHANC_BUILD}/Orthanc" "${ORTHANC_CONFIG_FILE}" &
+Orthanc "${ORTHANC_CONFIG_FILE}" &
 ORTHANC_PID=$!
 sleep 5
 
