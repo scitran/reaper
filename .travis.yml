@@ -18,17 +18,31 @@ cache:
         - $TESTDATA_DIR
         - $ORTHANC_VERSION
 
+before_install:
+    - ln -s bin $VIRTUAL_ENV/sbin
+    - sudo apt-get update -qq
+    - sudo apt-get install -qq
+          build-essential
+          cmake
+          libboost1.48-all-dev
+          libcharls-dev
+          libcurl4-openssl-dev
+          libdcmtk2-dev
+          libgtest-dev
+          libjpeg-dev
+          liblua5.1-0-dev
+          libpng-dev
+          libsqlite3-dev
+          libssl-dev
+          libwrap0-dev
+          mercurial
+          unzip
+          uuid-dev
+          zlib1g-dev
+
 install:
     - pip install .
     - pip install -U -r requirements-dev.txt
-# Orthanc requirements
-    - sudo apt-get update
-    - sudo apt-get install build-essential unzip cmake mercurial
-      uuid-dev libcurl4-openssl-dev liblua5.1-0-dev
-      libgtest-dev libpng-dev libsqlite3-dev libssl-dev libjpeg-dev
-      zlib1g-dev libdcmtk2-dev libboost1.48-all-dev libwrap0-dev
-      libcharls-dev
-# Non-package Dep Install
     - ./test/install_deps.sh
 
 script:
@@ -36,5 +50,5 @@ script:
     - ./test/lint.sh
 
 after_success:
-# Split out build steps to script to avoid yml parsing issues of the commands.
-- ./docker/build-trigger.sh Tag "${TRAVIS_TAG}" "${BUILD_TRIGGER_URL}"
+    # Split out build steps to script to avoid yml parsing issues of the commands.
+    - ./docker/build-trigger.sh Tag "${TRAVIS_TAG}" "${BUILD_TRIGGER_URL}"

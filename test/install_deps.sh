@@ -22,7 +22,7 @@ make install
 if [ ! -f "$ORTHANC_VERSION/Orthanc" ]; then
   curl -L "http://www.orthanc-server.com/downloads/get.php?path=/orthanc/$ORTHANC_VERSION.tar.gz" | tar xz
   cd "$ORTHANC_VERSION"
-  cmake -DSTATIC_BUILD=ON -DCMAKE_BUILD_TYPE=Release
+  cmake -DCMAKE_INSTALL_PREFIX=$VIRTUAL_ENV -DSTATIC_BUILD=ON -DCMAKE_BUILD_TYPE=Release
   make
 else
   cd "$ORTHANC_VERSION"
