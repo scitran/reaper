@@ -9,7 +9,6 @@ env:
         - DCMTK_DB_DIR="dcmtk_dicom_db"
         - TESTDATA_DIR="testdata"
         - ORTHANC_VERSION="Orthanc-1.1.0"
-        - ORTHANC_BUILD="${ORTHANC_VERSION}Build"
 
 cache:
     pip: true
@@ -17,7 +16,7 @@ cache:
         - $DCMTK_VERSION
         - $DCMTK_DB_DIR
         - $TESTDATA_DIR
-        - $ORTHANC_BUILD
+        - $ORTHANC_VERSION
 
 install:
     - pip install .

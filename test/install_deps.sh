@@ -19,14 +19,13 @@ make install
 
 # Orthanc
 (
-if [ ! -f "${ORTHANC_BUILD}/Orthanc" ]; then
-  curl http://www.orthanc-server.com/downloads/get.php?path=/orthanc/$ORTHANC_VERSION.tar.gz | tar xz
-  mkdir -p "$ORTHANC_BUILD"
-  cd "$ORTHANC_BUILD"
-  cmake -DSTATIC_BUILD=ON -DCMAKE_BUILD_TYPE=Release ../$ORTHANC_VERSION
+if [ ! -f "$ORTHANC_VERSION/Orthanc" ]; then
+  curl -L "http://www.orthanc-server.com/downloads/get.php?path=/orthanc/$ORTHANC_VERSION.tar.gz" | tar xz
+  cd "$ORTHANC_VERSION"
+  cmake -DSTATIC_BUILD=ON -DCMAKE_BUILD_TYPE=Release
   make
 else
-  cd "$ORTHANC_BUILD"
+  cd "$ORTHANC_VERSION"
 fi
 
 make install
