@@ -1,4 +1,4 @@
-sudo: false
+sudo: required
 language: python
 python:
     - "2.7"
@@ -8,6 +8,7 @@ env:
         - DCMTK_VERSION="dcmtk-3.6.1_20150924"
         - DCMTK_DB_DIR="dcmtk_dicom_db"
         - TESTDATA_DIR="testdata"
+        - ORTHANC_VERSION="Orthanc-1.1.0"
 
 cache:
     pip: true
@@ -15,6 +16,29 @@ cache:
         - $DCMTK_VERSION
         - $DCMTK_DB_DIR
         - $TESTDATA_DIR
+        - $ORTHANC_VERSION
+
+before_install:
+    - ln -s bin $VIRTUAL_ENV/sbin
+    - sudo apt-get update -qq
+    - sudo apt-get install -qq
+          build-essential
+          cmake
+          libboost1.48-all-dev
+          libcharls-dev
+          libcurl4-openssl-dev
+          libdcmtk2-dev
+          libgtest-dev
+          libjpeg-dev
+          liblua5.1-0-dev
+          libpng-dev
+          libsqlite3-dev
+          libssl-dev
+          libwrap0-dev
+          mercurial
+          unzip
+          uuid-dev
+          zlib1g-dev
 
 install:
     - pip install .
@@ -23,9 +47,8 @@ install:
 
 script:
     - ./test/test.sh
-    - pylint --reports=no reaper
-    - pep8 --max-line-length=150 --ignore=E402 reaper
+    - ./test/lint.sh
 
 after_success:
-# Split out build steps to script to avoid yml parsing issues of the commands.
-- ./docker/build-trigger.sh Tag "${TRAVIS_TAG}" "${BUILD_TRIGGER_URL}"
+    # Split out build steps to script to avoid yml parsing issues of the commands.
+    - ./docker/build-trigger.sh Tag "${TRAVIS_TAG}" "${BUILD_TRIGGER_URL}"

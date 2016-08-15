@@ -89,6 +89,32 @@ class Reaper(object):
         # pylint: disable=missing-docstring
         pass
 
+    def before_run(self):
+        """
+        Operations for before the run loop.
+        """
+        pass
+
+    def before_reap(self, _id):
+        """
+        Operations for before the series is reaped.
+        """
+        pass
+
+    def after_reap_success(self, _id):
+        """
+        Operations after the series is reaped successfully.
+
+        Executed before after_reap()
+        """
+        pass
+
+    def after_reap(self, _id):
+        """
+        Operations after the series is reaped, regardless of result.
+        """
+        pass
+
     def __get_instrument_state(self):
         query_start = datetime.datetime.utcnow()
         state = self.instrument_query()
@@ -152,6 +178,7 @@ class Reaper(object):
             _id, item = _id_item
             log.info('reap queue   item %d of %d', i + 1, reap_queue_len)
             with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir:
+                self.before_reap(_id)
                 item['reaped'], metadata_map = self.reap(_id, item, tempdir)  # returns True, False, None
                 if item['reaped']:
                     item['failures'] = 0
@@ -165,10 +192,14 @@ class Reaper(object):
                         item['reaped'] = True
                         item['abandoned'] = True
                         log.warning('abandoning   ' + self.state_str(_id, item['state']))
+                if item['reaped']:
+                    self.after_reap_success(_id)
+                self.after_reap(_id)
             self.persistent_state = self.state
 
     def run(self):
         # pylint: disable=missing-docstring
+        self.before_run()
         self.__set_initial_state()
         while self.alive:
             if not self.in_working_hours:
