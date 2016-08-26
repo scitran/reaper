@@ -1,4 +1,4 @@
-sudo: required
+sudo: false
 language: python
 python:
     - "2.7"
@@ -18,27 +18,13 @@ cache:
         - $TESTDATA_DIR
         - $ORTHANC_VERSION
 
+addons:
+    apt:
+        packages:
+            - uuid-dev
+
 before_install:
     - ln -s bin $VIRTUAL_ENV/sbin
-    - sudo apt-get update -qq
-    - sudo apt-get install -qq
-          build-essential
-          cmake
-          libboost1.48-all-dev
-          libcharls-dev
-          libcurl4-openssl-dev
-          libdcmtk2-dev
-          libgtest-dev
-          libjpeg-dev
-          liblua5.1-0-dev
-          libpng-dev
-          libsqlite3-dev
-          libssl-dev
-          libwrap0-dev
-          mercurial
-          unzip
-          uuid-dev
-          zlib1g-dev
 
 install:
     - pip install .
@@ -47,8 +33,7 @@ install:
 
 script:
     - ./test/test.sh
-    - ./test/lint.sh
+    - ./test/lint.sh reaper
 
 after_success:
-    # Split out build steps to script to avoid yml parsing issues of the commands.
     - ./docker/build-trigger.sh Tag "${TRAVIS_TAG}" "${BUILD_TRIGGER_URL}"
