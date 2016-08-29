@@ -42,7 +42,6 @@ def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None)
         arc_path = util.create_archive(arcdir_path, dir_name)
         metadata = util.object_metadata(dcm, timezone, os.path.basename(arc_path))
         util.set_archive_metadata(arc_path, metadata)
-        shutil.rmtree(arcdir_path)
         metadata_map[arc_path] = metadata
     return metadata_map
 

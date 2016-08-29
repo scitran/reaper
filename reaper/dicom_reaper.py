@@ -3,10 +3,13 @@
 import os
 import logging
 import datetime
+import re
+import zipfile
 
 from . import dcm
 from . import scu
 from . import reaper
+from subprocess import Popen, PIPE, STDOUT
 
 log = logging.getLogger('reaper.dicom')
 
@@ -19,6 +22,7 @@ class DicomReaper(reaper.Reaper):
         self.scu = scu.SCU(options.get('host'), options.get('port'), options.get('return_port'), options.get('aet'), options.get('aec'))
         super(DicomReaper, self).__init__(self.scu.aec, options)
         self.anonymize = options.get('anonymize')
+        self.uid_ext_command = options.get('uid_ext_command')
 
         self.query_tags = {self.map_key: ''}
         if self.opt_key is not None:
@@ -74,9 +78,39 @@ class DicomReaper(reaper.Reaper):
                 return None, {}
         if success and reap_cnt == item['state']['images']:
             metadata_map = dcm.pkg_series(_id, reapdir, self.map_key, self.opt_key, self.anonymize, self.timezone)
+            self._custom_acq_uid(metadata_map)
             return True, metadata_map
         else:
             return False, {}
+
+    def _custom_acq_uid(self, metadata_map):
+        if self.uid_ext_command is None:
+            return
+        for filepath, metadata in metadata_map.iteritems():
+            print(filepath)
+            print(metadata)
+            dcm_dir = re.sub('\.zip$','',filepath)
+
+            unzipped_file = [os.path.join(dcm_dir, filename) for filename in os.listdir(dcm_dir)][0]
+
+            formatted_string = self.uid_ext_command.format(unzipped_file)
+            print(formatted_string)
+
+
+            arg_list = formatted_string.split()
+
+            p = Popen(arg_list,
+                       stdout=PIPE,
+                       stderr=STDOUT)
+            out, _ = p.communicate()
+
+            if p.returncode and p.returncode != 0:
+                log.error('Error with command. Return code = {0}'.format(p.returncode))
+                raise RuntimeError(out)
+            print(out.rstrip())
+            metadata['acquisition']['uid'] = out.rstrip()
+            print(metadata)
+
 
 
 def update_arg_parser(ap):
@@ -88,6 +122,7 @@ def update_arg_parser(ap):
     ap.add_argument('aec', help='remote AE title')
 
     ap.add_argument('-A', '--no-anonymize', dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')
+    ap.add_argument('--uid-ext-command', dest='uid_ext_command', help='Command to execute against single source file to generate acquisition uid', default=None)
 
     return ap
 
