@@ -6,7 +6,7 @@ python:
 env:
     global:
         - DCMTK_VERSION="dcmtk-3.6.1_20150924"
-        - DCMTK_DB_DIR="dcmtk_dicom_db"
+        - DCMTK_DB_DIR="dcmtk_dicom_db-ci"
         - TESTDATA_DIR="testdata-ci"
         - ORTHANC_VERSION="Orthanc-1.1.0"
 
