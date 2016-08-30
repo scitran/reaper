@@ -29,7 +29,7 @@ RECEIVER_PID=$!
 # Fetch test data
 mkdir -p $TESTDATA_DIR
 if [ ! "$(ls -A $TESTDATA_DIR)" ]; then
-    curl -L https://github.com/scitran/testdata/archive/master.tar.gz | tar xz -C $TESTDATA_DIR --strip-components 1
+    curl -L https://github.com/scitran/testdata/archive/reaper-ci.tar.gz | tar xz -C $TESTDATA_DIR --strip-components 1
 fi
 
 
