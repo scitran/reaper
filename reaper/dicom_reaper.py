@@ -4,11 +4,11 @@ import os
 import logging
 import datetime
 import re
+from subprocess import Popen, PIPE, STDOUT
 
 from . import dcm
 from . import scu
 from . import reaper
-from subprocess import Popen, PIPE, STDOUT
 
 log = logging.getLogger('reaper.dicom')
 
@@ -86,28 +86,22 @@ class DicomReaper(reaper.Reaper):
         if self.uid_ext_command is None:
             return
         for filepath, metadata in metadata_map.iteritems():
-            print(filepath)
-            print(metadata)
             dcm_dir = re.sub(r'\.zip$', '', filepath)
 
             unzipped_file = [os.path.join(dcm_dir, filename) for filename in os.listdir(dcm_dir)][0]
 
             formatted_string = self.uid_ext_command.format(unzipped_file)
-            print(formatted_string)
-
             arg_list = formatted_string.split()
 
-            p = Popen(arg_list,
-                      stdout=PIPE,
-                      stderr=STDOUT)
-            out, _ = p.communicate()
+            proc = Popen(arg_list,
+                         stdout=PIPE,
+                         stderr=STDOUT)
+            out, _ = proc.communicate()
 
-            if p.returncode and p.returncode != 0:
-                log.error('Error with command. Return code = %d', p.returncode)
+            if proc.returncode and proc.returncode != 0:
+                log.error('Error with command. Return code = %d', proc.returncode)
                 raise RuntimeError(out)
-            print(out.rstrip())
             metadata['acquisition']['uid'] = out.rstrip()
-            print(metadata)
 
 
 def update_arg_parser(ap):
