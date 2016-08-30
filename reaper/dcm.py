@@ -1,7 +1,6 @@
 """SciTran Reaper DICOM utility functions"""
 
 import os
-import shutil
 import hashlib
 import logging
 import datetime
