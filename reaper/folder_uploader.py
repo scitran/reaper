@@ -116,7 +116,7 @@ def process(projects, upload_func):
                 metadata['session']['subject']['files'] = [file_metadata(f)]
                 upload_func(f['path'], metadata)
             metadata['session'].pop('files', [])
-            metadata['session']['subject'].pop('files',[])
+            metadata['session']['subject'].pop('files', [])
             for acquisition in session['acquisitions']:
                 a_label = s_label + ' > ' + acquisition['label']
                 log.info(action_str, '', a_label)
