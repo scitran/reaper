@@ -39,13 +39,13 @@ def scan_folder(path, symlinks=False):
             project = {'group': levels[0], 'label': levels[1], 'sessions': sessions, 'files': files}
             projects.append(project)
         elif level_cnt == 3:    # subject
+            subject_files = []
             if filenames:
-                log.critical('Files not allowed at subject level')
-                sys.exit(1)
+                subject_files = [{'path': os.path.join(dirpath, fn)} for fn in filenames]
         elif level_cnt == 4:    # session
             acquisitions = []
             files = [{'path': os.path.join(dirpath, fn)} for fn in filenames]
-            session = {'label': levels[3], 'subject': {'code': levels[2]}, 'acquisitions': acquisitions, 'files': files}
+            session = {'label': levels[3], 'subject': {'code': levels[2], 'files': subject_files}, 'acquisitions': acquisitions, 'files': files}
             sessions.append(session)
         elif level_cnt == 5:    # acquisition
             files = [{'path': os.path.join(dirpath, fn)} for fn in filenames]
@@ -58,16 +58,6 @@ def scan_folder(path, symlinks=False):
             log.critical('Folder structure too deep')
             sys.exit(1)
     return list(set([proj['group'] for proj in projects])), projects
-
-
-def tweak_labels(projects):
-    # pylint: disable=missing-docstring
-    for proj in projects:
-        session_labels = [sess['label'] for sess in proj['sessions']]
-        if len(set(session_labels)) < len(session_labels):
-            for sess in proj['sessions']:
-                sess['label'] = sess['subject']['code'] + '_' + sess['label']
-    return projects
 
 
 def print_upload_summary(projects):
@@ -115,12 +105,18 @@ def process(projects, upload_func):
         for session in project['sessions']:
             s_label = p_label + ' > ' + session['label']
             log.info(action_str, '', s_label)
+            subj_files = session['subject'].pop('files', [])
             metadata.update({'session': {'label': session['label'], 'subject': session['subject']}})
             for f in session['files']:
                 log.info(file_str, 'Uploading', f['path'])
                 metadata['session']['files'] = [file_metadata(f)]
                 upload_func(f['path'], metadata)
+            for f in subj_files:
+                log.info(file_str, 'Uploading', f['path'])
+                metadata['session']['subject']['files'] = [file_metadata(f)]
+                upload_func(f['path'], metadata)
             metadata['session'].pop('files', [])
+            metadata['session']['subject'].pop('files', [])
             for acquisition in session['acquisitions']:
                 a_label = s_label + ' > ' + acquisition['label']
                 log.info(action_str, '', a_label)
@@ -173,7 +169,6 @@ def main():
         sys.exit(1)
     log.info('Inspecting  %s', args.path)
     groups, projects = scan_folder(args.path, args.symlinks)
-    projects = tweak_labels(projects)
     if not args.yes:
         print_upload_summary(projects)
         try:
