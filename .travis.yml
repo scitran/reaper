@@ -33,7 +33,7 @@ install:
 
 script:
     - ./test/test.sh
-    - ./test/lint.sh reaper
+    - ./test/lint.sh
 
 after_success:
     - ./docker/build-trigger.sh Tag "${TRAVIS_TAG}" "${BUILD_TRIGGER_URL}"

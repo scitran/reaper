@@ -1,9 +1,11 @@
 """SciTran Reaper DICOM utility functions"""
 
-import os
+import datetime
 import hashlib
 import logging
-import datetime
+import os
+import shlex
+import subprocess
 
 import dicom
 
@@ -16,7 +18,15 @@ GEMS_TYPE_SCREENSHOT = ['DERIVED', 'SECONDARY', 'SCREEN SAVE']
 GEMS_TYPE_VXTL = ['DERIVED', 'SECONDARY', 'VXTL STATE']
 
 
-def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None):
+def __external_metadata(command, filepath):
+    try:
+        return subprocess.check_output(shlex.split(command), filepath)
+    except subprocess.CalledProcessError as ex:
+        log.error('Error running external command. Exit %d', ex.returncode)
+        return None
+
+
+def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None, additional_metadata=None):
     # pylint: disable=missing-docstring
     dcm_dict = {}
     log.info('inspecting   %s', _id)
@@ -39,7 +49,15 @@ def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None)
             os.utime(filepath, (file_time, file_time))  # correct timestamps
             os.rename(filepath, '%s.dcm' % os.path.join(arcdir_path, filename))
         arc_path = util.create_archive(arcdir_path, dir_name)
-        metadata = util.object_metadata(dcm, timezone, os.path.basename(arc_path))
+        for md_group_info in (additional_metadata or {}).itervalues():
+            for md_field, md_value in md_group_info.iteritems():
+                if md_value.startswith('^'):    # DICOM header value
+                    md_group_info[md_field] = dcm.raw_header.get(md_value[1:], None)
+                elif md_value.startswith('@'):  # external command
+                    md_group_info[md_field] = __external_metadata(md_value[1:], filepath)
+                else:                           # verbatim value
+                    md_group_info[md_field] = md_value[1:]
+        metadata = util.object_metadata(dcm, timezone, os.path.basename(arc_path), additional_metadata)
         util.set_archive_metadata(arc_path, metadata)
         metadata_map[arc_path] = metadata
     return metadata_map
@@ -57,6 +75,7 @@ class DicomFile(object):
         if not parse and anonymize:
             raise Exception('Cannot anonymize DICOM file without parsing')
         dcm = dicom.read_file(filepath, stop_before_pixels=(not anonymize))
+        self.raw_header = dcm
         self._id = dcm.get(map_key, '')
         self.opt = dcm.get(opt_key, '') if opt_key else None
         self.acq_no = str(dcm.get('AcquisitionNumber', '')) or None if dcm.get('Manufacturer').upper() != 'SIEMENS' else None

@@ -3,8 +3,6 @@
 import os
 import logging
 import datetime
-import re
-from subprocess import Popen, PIPE, STDOUT
 
 from . import dcm
 from . import scu
@@ -21,7 +19,8 @@ class DicomReaper(reaper.Reaper):
         self.scu = scu.SCU(options.get('host'), options.get('port'), options.get('return_port'), options.get('aet'), options.get('aec'))
         super(DicomReaper, self).__init__(self.scu.aec, options)
         self.anonymize = options.get('anonymize')
-        self.uid_ext_command = options.get('uid_ext_command')
+        self.additional_metadata = {group: {field: value} for group, field, value in options.get('metadata')}
+        print self.additional_metadata
 
         self.query_tags = {self.map_key: ''}
         if self.opt_key is not None:
@@ -76,32 +75,10 @@ class DicomReaper(reaper.Reaper):
                 log.info('ignoring     %s (non-matching opt-%s)', _id, self.opt)
                 return None, {}
         if success and reap_cnt == item['state']['images']:
-            metadata_map = dcm.pkg_series(_id, reapdir, self.map_key, self.opt_key, self.anonymize, self.timezone)
-            self._custom_acq_uid(metadata_map)
+            metadata_map = dcm.pkg_series(_id, reapdir, self.map_key, self.opt_key, self.anonymize, self.timezone, self.additional_metadata)
             return True, metadata_map
         else:
             return False, {}
-
-    def _custom_acq_uid(self, metadata_map):
-        if self.uid_ext_command is None:
-            return
-        for filepath, metadata in metadata_map.iteritems():
-            dcm_dir = re.sub(r'\.zip$', '', filepath)
-
-            unzipped_file = [os.path.join(dcm_dir, filename) for filename in os.listdir(dcm_dir)][0]
-
-            formatted_string = self.uid_ext_command.format(unzipped_file)
-            arg_list = formatted_string.split()
-
-            proc = Popen(arg_list,
-                         stdout=PIPE,
-                         stderr=STDOUT)
-            out, _ = proc.communicate()
-
-            if proc.returncode and proc.returncode != 0:
-                log.error('Error with command. Return code = %d', proc.returncode)
-                raise RuntimeError(out)
-            metadata['acquisition']['uid'] = out.rstrip()
 
 
 def update_arg_parser(ap):
@@ -113,10 +90,7 @@ def update_arg_parser(ap):
     ap.add_argument('aec', help='remote AE title')
 
     ap.add_argument('-A', '--no-anonymize', dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')
-    ap.add_argument('--uid-ext-command',
-                    dest='uid_ext_command',
-                    help='Command to execute against single source file to generate acquisition uid',
-                    default=None)
+    ap.add_argument('--metadata', nargs=3, default=[], action='append', help='Additional metadata to package')
 
     return ap
 

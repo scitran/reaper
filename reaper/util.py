@@ -61,7 +61,7 @@ def hrsize(size):
     return '%.0f%sB' % (size, 'Y')
 
 
-def object_metadata(obj, timezone, filename):
+def object_metadata(obj, timezone, filename, additional_metadata=None):
     # pylint: disable=missing-docstring
     metadata = {
         'session': {'timezone': timezone},
@@ -75,6 +75,10 @@ def object_metadata(obj, timezone, filename):
     metadata['file']['name'] = filename
     metadata['session']['subject'] = metadata.pop('subject', {})
     metadata['acquisition']['files'] = [metadata.pop('file', {})]
+    for md_group, md_group_info in (additional_metadata or {}).iteritems():
+        metadata.setdefault(md_group, {})
+        metadata[md_group].setdefault('metadata', {})
+        metadata[md_group]['metadata'].update(md_group_info)
     return metadata
 
 
