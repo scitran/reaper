@@ -67,10 +67,6 @@ class Reaper(object):
         if self.opt is not None:
             self.opt_key = options['opt_' + self.opt][0]
             self.opt_value = options['opt_' + self.opt][1].lower()
-            if options.get('exact_opt_match'):
-                self.opt_value = '^' + self.opt_value + '$'
-            else:
-                self.opt_value = '.*' + self.opt_value + '.*'
         self.map_key = options['map_key']
 
     def halt(self):
@@ -274,9 +270,8 @@ def main(cls, arg_parser_update=None):
 
     arg_parser.add_argument('--map-key', default='PatientID', help='key for mapping info [PatientID], patterned as subject@group/project')
     opt_group = arg_parser.add_mutually_exclusive_group()
-    opt_group.add_argument('--opt-in', nargs=2, help='opt-in key and value (case-insensitive substring matching)')
-    opt_group.add_argument('--opt-out', nargs=2, help='opt-out key and value (case-insensitive substring matching)')
-    arg_parser.add_argument('--exact-opt-match', action='store_true', help='use case-insensitive full-string opt matching')
+    opt_group.add_argument('--opt-in', nargs=2, help='opt-in key and value (case-insensitive regular expression matching)')
+    opt_group.add_argument('--opt-out', nargs=2, help='opt-out key and value (case-insensitive regular expression matching)')
 
     if arg_parser_update is not None:
         arg_parser = arg_parser_update(arg_parser)
