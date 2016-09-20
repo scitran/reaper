@@ -223,9 +223,9 @@ class Reaper(object):
         # pylint: disable=missing-docstring
         if self.opt is None:
             return True
-        if self.opt == 'in' and opt is not None and not re.match(self.opt_value, opt.lower()):
+        if self.opt == 'in' and opt is not None and not re.search(self.opt_value, opt.lower()):
             return False
-        if self.opt == 'out' and re.match(self.opt_value, opt.lower()):
+        if self.opt == 'out' and re.search(self.opt_value, opt.lower()):
             return False
         return True
 
