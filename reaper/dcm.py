@@ -42,6 +42,7 @@ def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None,
         dir_name = name_prefix + '.' + FILETYPE
         arcdir_path = os.path.join(path, '..', dir_name)
         os.mkdir(arcdir_path)
+        first_file = None
         for filepath in acq_paths:
             dcm = DicomFile(filepath, map_key, opt_key, parse=True, anonymize=anonymize, timezone=timezone)
             filename = os.path.basename(filepath)
@@ -49,14 +50,17 @@ def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None,
                 filename = filename.replace('(none)', 'NA')
             file_time = max(int(dcm.acquisition_timestamp.strftime('%s')), 315561600)  # zip can't handle < 1980
             os.utime(filepath, (file_time, file_time))  # correct timestamps
-            os.rename(filepath, '%s.dcm' % os.path.join(arcdir_path, filename))
+            new_filepath = '%s.dcm' % os.path.join(arcdir_path, filename)
+            os.rename(filepath, new_filepath)
+            if first_file is None:
+                first_file = new_filepath
         arc_path = util.create_archive(arcdir_path, dir_name)
         for md_group_info in (additional_metadata or {}).itervalues():
             for md_field, md_value in md_group_info.iteritems():
                 if md_value.startswith('^'):    # DICOM header value
                     md_group_info[md_field] = dcm.raw_header.get(md_value[1:], None)
                 elif md_value.startswith('@'):  # external command
-                    md_group_info[md_field] = __external_metadata(md_value[1:], filepath)
+                    md_group_info[md_field] = __external_metadata(md_value[1:], first_file)
                 else:                           # verbatim value
                     md_group_info[md_field] = md_value[1:]
         metadata = util.object_metadata(dcm, timezone, os.path.basename(arc_path), additional_metadata)
