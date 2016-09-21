@@ -20,10 +20,9 @@ GEMS_TYPE_VXTL = ['DERIVED', 'SECONDARY', 'VXTL STATE']
 
 def __external_metadata(command, filepath):
     try:
-        parms = shlex.split(command)
-        parms.append(filepath)
-        log.info(' command = %s', parms)
-        return subprocess.check_output(parms)
+        args = shlex.split(command) + [filepath]
+        log.debug('External metadata cmd: %s', ' '.join(args))
+        return subprocess.check_output(args)
     except subprocess.CalledProcessError as ex:
         log.error('Error running external command. Exit %d', ex.returncode)
         return None
