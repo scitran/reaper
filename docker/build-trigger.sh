@@ -9,7 +9,7 @@ SOURCE_CONTROL_REF_NAME="${2}"
 TRIGGER_URL="${3}"
 
 if [ -z "${SOURCE_CONTROL_REF_TYPE}" ] ; then
-  >&2 echo "INFO: Source control reference type provided, skipping build trigger."
+  >&2 echo "INFO: Source control reference type not provided, skipping build trigger."
   exit 0
 fi
 
