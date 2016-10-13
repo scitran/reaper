@@ -9,6 +9,7 @@ env:
         - DCMTK_DB_DIR="dcmtk_dicom_db"
         - TESTDATA_DIR="testdata"
         - ORTHANC_VERSION="Orthanc-1.1.0"
+        - secure: tLyIDfETpHCDRyEqF2ROM8ue+D+fl/IeOdFBY/Mov7zhAHpgBdQQJi+HQ1/RK+G7DDsnM/FIjvCcf4etphmBHK3xs8vDM1oPntYs+3iE2AbTcVGglHYoX1++H76xPt3eXyf1S0frgVg6qYCNmuP0chhDUkYXPydcKvq1ANjfTQU=
 
 cache:
     pip: true
