@@ -275,7 +275,7 @@ def main(cls, arg_parser_update=None):
 
     if arg_parser_update is not None:
         arg_parser = arg_parser_update(arg_parser)
-    args = arg_parser.parse_args()
+    args = arg_parser.parse_args(sys.argv[1:] or ['--help'])
 
     log.setLevel(getattr(logging, args.loglevel.upper()))
 

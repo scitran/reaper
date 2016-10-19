@@ -150,7 +150,7 @@ def main():
     arg_parser.add_argument('--oauth', action='store_true', help='read OAuth token from ' + OAUTH_TOKEN_VAR)
     arg_parser.add_argument('--root', action='store_true', help='send API requests as site admin')
 
-    args = arg_parser.parse_args()
+    args = arg_parser.parse_args(sys.argv[1:] or ['--help'])
 
     log.setLevel(getattr(logging, args.loglevel.upper()))
     log.debug(args)

@@ -30,7 +30,7 @@ arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INF
 arg_parser.add_argument('-y', '--yes', action='store_true', help='do not prompt to continue')
 arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
 arg_parser.add_argument('--map-key', default='PatientID', help='key for mapping info [PatientID], patterned as subject@group/project')
-args = arg_parser.parse_args()
+args = arg_parser.parse_args(sys.argv[1:] or ['--help'])
 args.query = dict(args.query)
 
 args.timezone = reaper.util.validate_timezone(args.timezone)
