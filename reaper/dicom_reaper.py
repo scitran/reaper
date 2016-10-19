@@ -57,6 +57,7 @@ class DicomReaper(reaper.Reaper):
         return i_state
 
     def reap(self, _id, item, tempdir):
+        # pylint: disable=too-many-return-statements
         if item['state']['images'] == 0:
             log.info('ignoring     %s (zero images)', _id)
             return None, {}
@@ -70,13 +71,20 @@ class DicomReaper(reaper.Reaper):
         success, reap_cnt = self.scu.move(scu.SeriesQuery(SeriesInstanceUID=_id), reapdir)
         log.info('reaped       %s (%d images) in %.1fs', _id, reap_cnt, (datetime.datetime.utcnow() - reap_start).total_seconds())
         if success and reap_cnt > 0:
-            df = dcm.DicomFile(os.path.join(reapdir, os.listdir(reapdir)[0]), self.map_key, self.opt_key)
+            try:
+                df = dcm.DicomFile(os.path.join(reapdir, os.listdir(reapdir)[0]), self.map_key, self.opt_key)
+            except dcm.DicomError:
+                return False, {}
             if not self.is_desired_item(df.opt):
                 log.info('ignoring     %s (non-matching opt-%s)', _id, self.opt)
                 return None, {}
         if success and reap_cnt == item['state']['images']:
-            metadata_map = dcm.pkg_series(_id, reapdir, self.map_key, self.opt_key, self.anonymize, self.timezone, self.additional_metadata)
-            return True, metadata_map
+            try:
+                metadata_map = dcm.pkg_series(_id, reapdir, self.map_key, self.opt_key, self.anonymize, self.timezone, self.additional_metadata)
+            except dcm.DicomError:
+                return False, {}
+            else:
+                return True, metadata_map
         else:
             return False, {}
 

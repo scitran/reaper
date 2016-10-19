@@ -18,14 +18,22 @@ GEMS_TYPE_SCREENSHOT = ['DERIVED', 'SECONDARY', 'SCREEN SAVE']
 GEMS_TYPE_VXTL = ['DERIVED', 'SECONDARY', 'VXTL STATE']
 
 
+class DicomError(Exception):
+
+    """DicomError class"""
+
+    pass
+
+
 def __external_metadata(command, filepath):
     try:
         args = shlex.split(command) + [filepath]
         log.debug('External metadata cmd: %s', ' '.join(args))
         return subprocess.check_output(args)
     except subprocess.CalledProcessError as ex:
-        log.error('Error running external command. Exit %d', ex.returncode)
-        return None
+        msg = 'Error running external command. Exit code %d' % ex.returncode
+        log.error(msg)
+        raise DicomError(msg)
 
 
 def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None, additional_metadata=None):
@@ -68,16 +76,17 @@ def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None,
 
 class DicomFile(object):
 
-    """
-    DicomFile class
-    """
+    """DicomFile class"""
 
     # pylint: disable=too-few-public-methods
 
     def __init__(self, filepath, map_key, opt_key=None, parse=False, anonymize=False, timezone=None):
         if not parse and anonymize:
-            raise Exception('Cannot anonymize DICOM file without parsing')
-        dcm = dicom.read_file(filepath, stop_before_pixels=(not anonymize))
+            raise DicomError('Cannot anonymize DICOM file without parsing')
+        try:
+            dcm = dicom.read_file(filepath, stop_before_pixels=(not anonymize))
+        except:
+            raise DicomError()
         self.raw_header = dcm
         self._id = dcm.get(map_key, '')
         self.opt = dcm.get(opt_key, '') if opt_key else None
