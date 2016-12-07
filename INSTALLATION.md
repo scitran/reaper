@@ -49,9 +49,12 @@ pip install -e reaper
 
 ## DICOM Network Debugging
 ```
-AEC=scanner; HOST=host; PORT=port
-findscu --verbose -S -aet reaper -aec $AEC -k QueryRetrieveLevel="STUDY" -k StudyInstanceUID="" $HOST $PORT
-findscu --verbose -S -aet reaper -aec $AEC -k QueryRetrieveLevel="SERIES" -k StudyInstanceUID="" -k SeriesInstanceUID="" $HOST $PORT
+AET=reaper; AEC=scanner; HOST=host; PORT=port; R_PORT=port
+findscu -v -S -aet $AET -aec $AEC -k QueryRetrieveLevel="STUDY" -k StudyInstanceUID="" $HOST $PORT
+findscu -v -S -aet $AET -aec $AEC -k QueryRetrieveLevel="SERIES" -k StudyInstanceUID="" -k SeriesInstanceUID="" $HOST $PORT
+
+SERIES_UID="1.2...."
+movescu -v -S -aet $AET -aec $AEC -k QueryRetrieveLevel="SERIES" -k StudyInstanceUID="" -k SeriesInstanceUID="$SERIES_UID" -od /tmp --port $R_PORT $HOST $PORT
 ```
 
 
