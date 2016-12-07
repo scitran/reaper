@@ -65,9 +65,17 @@ def scan_folder(path, symlinks=False):
 def print_upload_summary(projects):
     # pylint: disable=missing-docstring
     group_cnt = len(set([proj['group'] for proj in projects]))
-    project_cnt = len(projects)
     session_cnt = sum([len(proj['sessions']) for proj in projects])
-    log.info('Found %d Session(s) in %d Project(s) in %d Group(s)', session_cnt, project_cnt, group_cnt)
+    file_cnt = packfile_cnt = 0
+    for proj in projects:
+        file_cnt += len(proj['files'])
+        for sess in proj['sessions']:
+            file_cnt += len(sess['files']) + len(sess['subject']['files'])
+            for acq in sess['acquisitions']:
+                file_cnt += len(acq['files'])
+                packfile_cnt += len(acq['packfiles'])
+    log.info('Found %d Session(s) in %d Project(s) in %d Group(s)', session_cnt, len(projects), group_cnt)
+    log.info('Will upload %d regular file(s) and %d pack file(s)', file_cnt, packfile_cnt)
 
 
 def file_metadata(f, **kwargs):
@@ -131,7 +139,7 @@ def process(projects, upload_func):
                 log.info(action_str, 'pack-', a_label)
                 for f in acquisition['packfiles']:
                     with tempfile.TemporaryDirectory() as tempdir:
-                        log.info(file_str, 'Packaging', f['path'])
+                        log.info(file_str, 'Packing', f['path'])
                         arcname = acquisition['label'] + '.' + f['type']
                         fp = reaper.util.create_archive(f['path'], arcname, None, tempdir)
                         metadata['acquisition']['files'] = [file_metadata(f, name=os.path.basename(fp))]
