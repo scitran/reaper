@@ -148,9 +148,33 @@ def process(projects, upload_func):
                 metadata['acquisition'].pop('files', [])
 
 
+DESCRIPTION = """
+This tool will crawl a given directory, validate its structure,
+print stats about what it found, and subsequently upload all
+files to a scitran/core-compatible API, including creation of
+the appropriate project/session/acquisition hierarchy.
+
+Multiple files/folders are supported at all levels, except at
+the scitran-group level, which does not support files at all.
+
+example-tree
+└── scitran-group
+    └── scitran-project
+        ├── project-file
+        └── subject-label
+            ├── subject-file
+            └── session-label
+                ├── session-file
+                └── acquisition-label
+                    ├── untyped-data-file
+                    └── data-type
+                        └── data-file
+"""
+
+
 def main():
     # pylint: disable=missing-docstring
-    arg_parser = argparse.ArgumentParser()
+    arg_parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=argparse.RawDescriptionHelpFormatter)
     arg_parser.add_argument('path', help='path to reap')
     arg_parser.add_argument('uri', help='API URL')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
