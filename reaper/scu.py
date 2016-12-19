@@ -71,8 +71,7 @@ class SCU(object):
         output = ''
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except subprocess.CalledProcessError as ex:
             log.debug('%s: %s', type(ex).__name__, ex)
             if output:
                 log.debug(output)
@@ -90,14 +89,15 @@ class SCU(object):
         output = ''
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
-        # pylint: disable=broad-except
-        except Exception as ex:
+        except subprocess.CalledProcessError as ex:
             log.debug('%s: %s', type(ex).__name__, ex)
             if output:
                 log.debug(output)
         if output:
             success = bool(re.search(r'I: Received Final Move Response \(Success\)', output))
             img_cnt = len(os.listdir(dest_path))
+            if not success:
+                log.debug(output)
         else:
             success = False
             img_cnt = 0
