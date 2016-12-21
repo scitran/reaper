@@ -40,6 +40,8 @@ COPY bin /var/scitran/code/reaper/bin/
 COPY reaper /var/scitran/code/reaper/reaper/
 COPY LICENSE setup.py /var/scitran/code/reaper/
 
+RUN locale-gen en_US.UTF-8
+ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 RUN pip install --upgrade -e /var/scitran/code/reaper
 
 

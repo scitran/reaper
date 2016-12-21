@@ -149,7 +149,7 @@ def process(projects, upload_func):
                 metadata['acquisition'].pop('files', [])
 
 
-DESCRIPTION = """
+DESCRIPTION = u"""
 This tool will crawl a given directory, validate its structure,
 print stats about what it found, and subsequently upload all
 files to a scitran/core-compatible API, including creation of
