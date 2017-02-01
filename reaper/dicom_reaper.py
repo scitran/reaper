@@ -56,21 +56,22 @@ class DicomReaper(reaper.Reaper):
 
     def reap(self, _id, item, tempdir):
         if item['state']['images'] == 0:
-            log.info('ignoring     %s (zero images)', _id)
+            log.info('Ignoring     %s (zero images)', _id)
             return None, {}
         if not self.is_desired_item(item['state']['opt']):
-            log.info('ignoring     %s (non-matching opt-%s)', _id, self.opt)
+            log.info('Ignoring     %s (non-matching opt-%s)', _id, self.opt)
             return None, {}
         reapdir = os.path.join(tempdir, 'raw_dicoms')
         os.mkdir(reapdir)
-        reap_start = datetime.datetime.utcnow()
-        log.info('reaping      %s', self.state_str(_id, item['state']))
+        log.info('Reaping      %s', self.state_str(_id, item['state']))
+        start = datetime.datetime.utcnow()
         success, reap_cnt = self.scu.move(scu.SeriesQuery(SeriesInstanceUID=_id), reapdir)
-        log.info('reaped       %s (%d images) in %.1fs', _id, reap_cnt, (datetime.datetime.utcnow() - reap_start).total_seconds())
+        duration = (datetime.datetime.utcnow() - start).total_seconds()
+        log.info('Reaped       %s, %d images in %.1fs [%.0f/s]', _id, reap_cnt, duration, reap_cnt / duration)
         if success and reap_cnt > 0:
             df = dcm.DicomFile(os.path.join(reapdir, os.listdir(reapdir)[0]), self.map_key, self.opt_key)
             if not self.is_desired_item(df.opt):
-                log.info('ignoring     %s (non-matching opt-%s)', _id, self.opt)
+                log.info('Ignoring     %s (non-matching opt-%s)', _id, self.opt)
                 return None, {}
         if success and reap_cnt == item['state']['images']:
             metadata_map = dcm.pkg_series(_id, reapdir, self.map_key, self.opt_key, self.anonymize, self.timezone)

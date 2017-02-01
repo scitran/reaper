@@ -20,12 +20,18 @@ GEMS_TYPE_VXTL = ['DERIVED', 'SECONDARY', 'VXTL STATE']
 def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None):
     # pylint: disable=missing-docstring
     dcm_dict = {}
-    log.info('inspecting   %s', _id)
-    for filepath in [os.path.join(path, filename) for filename in os.listdir(path)]:
+    log.info('Inspecting   %s', _id)
+    start = datetime.datetime.utcnow()
+    filepaths = [os.path.join(path, filename) for filename in os.listdir(path)]
+    file_cnt = len(filepaths)
+    for filepath in filepaths:
         dcm = DicomFile(filepath, map_key, opt_key)
         dcm_dict.setdefault(dcm.acq_no, []).append(filepath)
-    log.info('compressing  %s%s', _id, ' (and anonymizing)' if anonymize else '')
+    duration = (datetime.datetime.utcnow() - start).total_seconds()
+    log.info('Inspected    %s, %d images in %.1fs [%.0f/s]', _id, file_cnt, duration, file_cnt / duration)
+    log.info('Compressing  %s%s', _id, ' (and anonymizing)' if anonymize else '')
     metadata_map = {}
+    start = datetime.datetime.utcnow()
     for acq_no, acq_paths in dcm_dict.iteritems():
         name_prefix = _id + ('_' + acq_no if acq_no is not None else '')
         dir_name = name_prefix + '.' + FILETYPE
@@ -44,6 +50,9 @@ def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None)
         util.set_archive_metadata(arc_path, metadata)
         shutil.rmtree(arcdir_path)
         metadata_map[arc_path] = metadata
+    duration = (datetime.datetime.utcnow() - start).total_seconds()
+    log.info('Compressed   %s%s, %d images in %.1fs [%.0f/s]',
+             _id, ' (and anonymized)' if anonymize else '', file_cnt, duration, file_cnt / duration)
     return metadata_map
 
 
