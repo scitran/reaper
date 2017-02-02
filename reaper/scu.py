@@ -33,6 +33,8 @@ DICOM_CV_RE = re.compile(
 
 QUERY_TEMPLATE = {
     'StudyInstanceUID': '',
+    'StudyDate': '',
+    'StudyTime': '',
     'SeriesInstanceUID': '',
     'NumberOfSeriesRelatedInstances': '',
     'PatientID': '',

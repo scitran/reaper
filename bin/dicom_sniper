@@ -8,13 +8,18 @@ import logging
 import argparse
 import datetime
 
+## configure logging before reaper.util does
+logging.basicConfig(
+    format='%(message)s',
+    level=logging.INFO,
+)
+log = logging.getLogger('dicom_sniper')
+
 import reaper.dcm
 import reaper.scu
 import reaper.util
 import reaper.upload
 import reaper.tempdir as tempfile
-
-log = logging.getLogger('dicom_sniper')
 
 
 arg_parser = argparse.ArgumentParser()
@@ -39,7 +44,7 @@ if args.timezone is None:
     log.error('invalid timezone')
     sys.exit(1)
 
-log.setLevel(getattr(logging, args.loglevel.upper()))
+logging.root.setLevel(getattr(logging, args.loglevel.upper()))
 
 
 scu_ = reaper.scu.SCU(args.host, args.port, args.rport, args.aet, args.aec)
@@ -60,6 +65,8 @@ for study in scu_studies:
         }
 matched_series_cnt = len(matched_series)
 log.info('Found %d DICOM Series in %d Studies', matched_series_cnt, len(scu_studies))
+for study in sorted(scu_studies, key=lambda study: study.StudyDate + study.StudyTime):
+    log.info('  %s %s %s', study.StudyDate, study.StudyTime, study.StudyInstanceUID)
 
 if not args.yes:
     try:
