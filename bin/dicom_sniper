@@ -6,14 +6,20 @@ import os
 import sys
 import logging
 import argparse
+import datetime
+
+## configure logging before reaper.util does
+logging.basicConfig(
+    format='%(message)s',
+    level=logging.INFO,
+)
+log = logging.getLogger('dicom_sniper')
 
 import reaper.dcm
 import reaper.scu
 import reaper.util
 import reaper.upload
 import reaper.tempdir as tempfile
-
-log = logging.getLogger('dicom_sniper')
 
 
 arg_parser = argparse.ArgumentParser()
@@ -38,7 +44,7 @@ if args.timezone is None:
     log.error('invalid timezone')
     sys.exit(1)
 
-log.setLevel(getattr(logging, args.loglevel.upper()))
+logging.root.setLevel(getattr(logging, args.loglevel.upper()))
 
 
 scu_ = reaper.scu.SCU(args.host, args.port, args.rport, args.aet, args.aec)
@@ -59,13 +65,17 @@ for study in scu_studies:
         }
 matched_series_cnt = len(matched_series)
 log.info('Found %d DICOM Series in %d Studies', matched_series_cnt, len(scu_studies))
+for study in sorted(scu_studies, key=lambda study: study.StudyDate + study.StudyTime):
+    log.info('  %s %s %s', study.StudyDate, study.StudyTime, study.StudyInstanceUID)
 
 if not args.yes:
     try:
-        raw_input('Press Enter to fetch and upload all Series or Ctrl-C to abort...')
+        raw_input('\nPress Enter to fetch and upload all Series or Ctrl-C to abort...')
     except KeyboardInterrupt:
         print
         sys.exit(1)
+    else:
+        print
 
 _, upload_function = reaper.upload.upload_function(args.uri, ('sniper', args.aec), insecure=args.insecure, upload_route='/upload/uid')
 
@@ -73,9 +83,14 @@ for series_uid, series_info in matched_series.iteritems():
     with tempfile.TemporaryDirectory() as tempdir:
         reapdir = os.path.join(tempdir, 'reap')
         os.mkdir(reapdir)
-        log.info('Fetching     %s [%d images]', series_uid, series_info['image_cnt'])
+        log.info('Fetching     %s, %d images', series_uid, series_info['image_cnt'])
+        start = datetime.datetime.utcnow()
         series_info['success'], _ = scu_.move(reaper.scu.SeriesQuery(SeriesInstanceUID=series_uid), reapdir)
-        if not series_info['success']:
+        duration = (datetime.datetime.utcnow() - start).total_seconds()
+        if series_info['success']:
+            log.info('Received     %s, %d images in %.1fs [%.0f/s]',
+                     series_uid, series_info['image_cnt'], duration, series_info['image_cnt'] / duration)
+        else:
             log.error('Failure      %s', series_uid)
             continue
         metadata_map = reaper.dcm.pkg_series(series_uid, reapdir, args.map_key, None, args.anonymize, args.timezone)
