@@ -20,7 +20,6 @@ log = logging.getLogger()
 
 
 def scan_folder(path, symlinks=False):
-    # pylint: disable=missing-docstring
     projects = []
     for dirpath, dirnames, filenames in os.walk(path, followlinks=symlinks):
         filenames = [fn for fn in filenames if not fn.startswith('.')]      # ignore dotfiles
@@ -62,7 +61,6 @@ def scan_folder(path, symlinks=False):
 
 
 def print_upload_summary(projects):
-    # pylint: disable=missing-docstring
     group_cnt = len(set([proj['group'] for proj in projects]))
     session_cnt = sum([len(proj['sessions']) for proj in projects])
     file_cnt = packfile_cnt = 0
@@ -78,7 +76,6 @@ def print_upload_summary(projects):
 
 
 def file_metadata(f, **kwargs):
-    # pylint: disable=missing-docstring
     md = {'name': os.path.basename(f['path'])}
     if f.get('type') is not None:
         md['type'] = f['type']
@@ -87,7 +84,6 @@ def file_metadata(f, **kwargs):
 
 
 def upsert_groups(groups, api_request):
-    # pylint: disable=missing-docstring
     for group in groups:
         success = api_request('post', '/groups', json={'_id': group.lower()})
         if success:
@@ -97,7 +93,6 @@ def upsert_groups(groups, api_request):
 
 
 def process(projects, upload_func):
-    # pylint: disable=missing-docstring
     action_str = 'Upserting %sfiles to %s'
     file_str = '  %s %s'
 
@@ -172,7 +167,6 @@ example-tree
 
 
 def main():
-    # pylint: disable=missing-docstring
     arg_parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=argparse.RawDescriptionHelpFormatter)
     arg_parser.add_argument('path', help='path to reap')
     arg_parser.add_argument('uri', help='API URL')
@@ -210,7 +204,6 @@ def main():
     try:
         upsert_groups(groups, api_request)
         process(projects, upload_func)
-    # pylint: disable=broad-except
     except Exception as ex:
         log.critical(str(ex))
         sys.exit(1)
