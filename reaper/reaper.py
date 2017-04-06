@@ -299,8 +299,9 @@ def main(cls, arg_parser_update=None):
         log.warning('no upload URI provided; === DATA WILL BE PURGED AFTER REAPING ===')
     for uri in args.upload:
         try:
+            uri, _, secret = uri.partition('?secret=')
             reaper.upload_targets.append(
-                upload.upload_function(uri, ('reaper', reaper.id_), insecure=args.insecure, upload_route='/upload/uid')[1]
+                upload.upload_function(uri, ('reaper', reaper.id_, secret), insecure=args.insecure, upload_route='/upload/uid')[1]
             )
         except ValueError as ex:
             log.error(str(ex))

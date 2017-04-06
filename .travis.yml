@@ -29,12 +29,11 @@ before_install:
 
 install:
     - pip install .
-    - pip install -U -r requirements-dev.txt
+    - pip install -r test/requirements.txt
     - ./test/install_deps.sh
 
 script:
-    - ./test/test.sh
-    - ./test/lint.sh reaper
+    - ./test/lint.sh reaper && ./test/test.sh
 
 after_success:
     - if [ "$TRAVIS_TAG" ]; then

@@ -15,7 +15,9 @@ HOST=${HOST:-"http://localhost:$PORT"}
 # Set up exit and error trap to shutdown dependencies
 shutdown() {
     echo 'Exit signal trapped'
-    kill $DCMQRSCP_PID $RECEIVER_PID $ORTHANC_PID
+    kill $DCMQRSCP_PID || true
+    kill $RECEIVER_PID || true
+    kill $ORTHANC_PID || true
     wait
 }
 trap "shutdown" EXIT ERR
@@ -69,7 +71,7 @@ dicom_reaper -o -s 1 $(mktemp) localhost 5104 3333 REAPER DCMQRSCP -u $HOST
 
 
 # Test Folder Sniper
-folder_sniper -y $TESTDATA_DIR $HOST
+folder_sniper -y --secret secret $TESTDATA_DIR $HOST
 
 # Test Orthanc DICOM Reaper
 ORTHANC_CONFIG_FILE="orthanc-config.json"

@@ -66,12 +66,11 @@ def metadata_upload(filepath, metadata, upload_func):
     return success
 
 
-def upload_function(uri, client_info, root=False, auth_token=None, insecure=False, upload_route=''):
+def upload_function(uri, secret_info=None, key=None, root=False, insecure=False, upload_route=''):
     # pylint: disable=missing-docstring
     """Helper to get an appropriate upload function based on protocol"""
     if uri.startswith('http://') or uri.startswith('https://'):
-        uri, _, secret = uri.partition('?secret=')
-        return __http_upload(uri.strip('/'), client_info, root, secret, auth_token, insecure, upload_route)
+        return __http_upload(uri.strip('/'), secret_info, key, root, insecure, upload_route)
     elif uri.startswith('testing://'):
         return lambda method, route, **kwargs: True, lambda filepath, metadata: True
     elif uri.startswith('s3://'):
@@ -82,29 +81,9 @@ def upload_function(uri, client_info, root=False, auth_token=None, insecure=Fals
         raise ValueError('bad upload URI "%s"' % uri)
 
 
-def __request_session(client_info, root=False, secret=None, auth_token=None, insecure=False):
+def __http_upload(url, secret_info, key, root, insecure, upload_route):
     # pylint: disable=missing-docstring
-    if insecure:
-        requests.packages.urllib3.disable_warnings()
-    rs = requests.Session()
-    rs.headers = {
-        'X-SciTran-Method': client_info[0],
-        'X-SciTran-Name': client_info[1],
-    }
-    rs.params = {
-        'root': root,
-    }
-    if secret:
-        rs.headers['X-SciTran-Auth'] = secret
-    elif auth_token:
-        rs.headers['Authorization'] = auth_token
-    rs.verify = not insecure
-    return rs
-
-
-def __http_upload(url, client_info, root, secret, auth_token, insecure, upload_route):
-    # pylint: disable=missing-docstring
-    http_session = __request_session(client_info, root, secret, auth_token, insecure)
+    http_session = __request_session(secret_info, key, root, insecure)
 
     def request(method, route, **kwargs):
         try:
@@ -135,6 +114,22 @@ def __http_upload(url, client_info, root, secret, auth_token, insecure, upload_r
                 return False
 
     return request, upload
+
+
+def __request_session(secret_info, key, root, insecure):
+    # pylint: disable=missing-docstring
+    if insecure:
+        requests.packages.urllib3.disable_warnings()
+    rs = requests.Session()
+    if secret_info:
+        rs.headers['X-SciTran-Method'] = secret_info[0]
+        rs.headers['X-SciTran-Name'] = secret_info[1]
+        rs.headers['X-SciTran-Auth'] = secret_info[2]
+    elif key:
+        rs.headers['Authorization'] = 'scitran-user ' + key
+    rs.params['root'] = root
+    rs.verify = not insecure
+    return rs
 
 
 def __s3_upload(filename, filepath, metadata, digest, uri):
