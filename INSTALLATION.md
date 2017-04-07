@@ -43,7 +43,7 @@ make install
 ### Reaper
 ```
 git clone https://github.com/scitran/reaper.git
-pip install -e reaper
+pip install -e ./reaper
 ```
 
 

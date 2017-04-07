@@ -37,4 +37,9 @@ script:
     - ./test/lint.sh reaper
 
 after_success:
-    - ./docker/build-trigger.sh Tag "${TRAVIS_TAG}" "${BUILD_TRIGGER_URL}"
+    - if [ "$TRAVIS_TAG" ]; then
+          ./docker/build-trigger.sh Tag "$TRAVIS_TAG" "$BUILD_TRIGGER_URL";
+      fi
+    - if [ "$TRAVIS_EVENT_TYPE" == "push" -a "$TRAVIS_BRANCH" == "master" ]; then
+          ./docker/build-trigger.sh Branch "$TRAVIS_BRANCH" "$BUILD_TRIGGER_URL";
+      fi
