@@ -6,7 +6,7 @@ unset CDPATH
 cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
 echo "Running pylint ..."
-pylint --reports=no "$@"
+pylint --jobs=2 --reports=no --disable=R1705 "$@"
 
 echo
 
