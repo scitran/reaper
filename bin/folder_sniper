@@ -200,10 +200,10 @@ def main():
             sys.exit(1)
 
     secret_info = ('Folder Sniper', 'System Import', args.secret) if args.secret else None
-    api_request, upload_func = reaper.upload.upload_function(args.uri, secret_info, args.key, args.root, args.insecure, '/upload/label')
+    api_request, upload_function = reaper.upload.upload_function(args.uri, secret_info, args.key, args.root, args.insecure, '/upload/label')
     try:
         upsert_groups(groups, api_request)
-        process(projects, upload_func)
+        process(projects, upload_function)
     except Exception as ex:
         log.critical(str(ex))
         sys.exit(1)

@@ -45,7 +45,7 @@ class Reaper(object):
         self.alive = True
         self.opt = None
         self.opt_value = None
-        self.upload_targets = []
+        self.upload_function = None
         self.unreaped_cnt = 0
 
         self.persistence_file = options.get('persistence_file')
@@ -178,7 +178,7 @@ class Reaper(object):
                 item['reaped'], metadata_map = self.reap(_id, item, tempdir)  # returns True, False, None
                 if item['reaped']:
                     item['failures'] = 0
-                    item['reaped'] = upload.upload_many(metadata_map, self.upload_targets)
+                    item['reaped'] = upload.upload_many(metadata_map, self.upload_function)
                 elif item['reaped'] is None:  # mark skipped or discarded items as reaped
                     item['reaped'] = True
                 else:
@@ -260,13 +260,16 @@ def main(cls, arg_parser_update=None):
     arg_parser.add_argument('-s', '--sleeptime', type=int, help='time to sleep before checking for new data [60s]')
     arg_parser.add_argument('-g', '--graceperiod', type=int, help='time to keep vanished data alive [24h]')
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
-    arg_parser.add_argument('-u', '--upload', action='append', default=[], help='upload URI')
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
     arg_parser.add_argument('-x', '--ignore_existing', action='store_true', help='ignore existing data')
     arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-k', '--workinghours', nargs=2, type=int, help='working hours in 24hr time [0 24]')
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='break out of runloop after one iteration (for testing)')
+
+    auth_group = arg_parser.add_mutually_exclusive_group(required=True)
+    auth_group.add_argument('--secret', help='shared API secret')
+    auth_group.add_argument('--key', help='user API key')
 
     arg_parser.add_argument('--map-key', default='PatientID', help='key for mapping info [PatientID], patterned as subject@group/project')
     opt_group = arg_parser.add_mutually_exclusive_group()
@@ -275,6 +278,7 @@ def main(cls, arg_parser_update=None):
 
     if arg_parser_update is not None:
         arg_parser = arg_parser_update(arg_parser)
+    arg_parser.add_argument('uri', help='API URL')
     args = arg_parser.parse_args(sys.argv[1:] or ['--help'])
 
     log.setLevel(getattr(logging, args.loglevel.upper()))
@@ -295,17 +299,9 @@ def main(cls, arg_parser_update=None):
     log.debug(args)
 
     reaper = cls(vars(args))
-    if not args.upload:
-        log.warning('no upload URI provided; === DATA WILL BE PURGED AFTER REAPING ===')
-    for uri in args.upload:
-        try:
-            uri, _, secret = uri.partition('?secret=')
-            reaper.upload_targets.append(
-                upload.upload_function(uri, ('reaper', reaper.id_, secret), insecure=args.insecure, upload_route='/upload/uid')[1]
-            )
-        except ValueError as ex:
-            log.error(str(ex))
-            sys.exit(1)
+    _, reaper.upload_function = upload.upload_function(
+        args.uri, ('reaper', reaper.id_, args.secret), insecure=args.insecure, upload_route='/upload/uid'
+    )
 
     def term_handler(signum, stack):
         # pylint: disable=missing-docstring,unused-argument

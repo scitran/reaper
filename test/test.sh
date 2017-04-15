@@ -63,11 +63,11 @@ DCMQRSCP_PID=$!
 
 
 # Test DICOM Sniper
-dicom_sniper -y -k StudyID "" localhost 5104 3333 REAPER DCMQRSCP $HOST
+dicom_sniper -y --secret secret -k StudyID "" localhost 5104 3333 REAPER DCMQRSCP $HOST
 
 
 # Test DICOM Reaper
-dicom_reaper -o -s 1 $(mktemp) localhost 5104 3333 REAPER DCMQRSCP -u $HOST
+dicom_reaper -o -s 1 --secret secret $(mktemp) localhost 5104 3333 REAPER DCMQRSCP $HOST
 
 
 # Test Folder Sniper
@@ -88,4 +88,4 @@ ORTHANC_PID=$!
 sleep 5
 
 storescu -v --scan-directories -aec ORTHANC localhost 4242  $(find $TESTDATA_DIR -type d -name dicom | tail -n 1)
-orthanc_reaper -o -s 1 $(mktemp) localhost 4242 3333 REAPER ORTHANC "http://localhost:8042" -u $HOST
+orthanc_reaper -o -s 1 --secret secret $(mktemp) localhost 4242 3333 REAPER ORTHANC "http://localhost:8042" $HOST

@@ -36,6 +36,11 @@ arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INF
 arg_parser.add_argument('-y', '--yes', action='store_true', help='do not prompt to continue')
 arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
 arg_parser.add_argument('--map-key', default='PatientID', help='key for mapping info [PatientID], patterned as subject@group/project')
+
+auth_group = arg_parser.add_mutually_exclusive_group(required=True)
+auth_group.add_argument('--secret', help='shared API secret')
+auth_group.add_argument('--key', help='user API key')
+
 args = arg_parser.parse_args(sys.argv[1:] or ['--help'])
 args.query = dict(args.query)
 
@@ -77,8 +82,7 @@ if not args.yes:
     else:
         print
 
-uri, _, secret = args.uri.partition('?secret=')
-_, upload_function = reaper.upload.upload_function(args.uri, ('sniper', args.aec, secret), insecure=args.insecure, upload_route='/upload/uid')
+_, upload_function = reaper.upload.upload_function(args.uri, ('sniper', args.aec, args.secret), insecure=args.insecure, upload_route='/upload/uid')
 
 for series_uid, series_info in matched_series.iteritems():
     with tempfile.TemporaryDirectory() as tempdir:

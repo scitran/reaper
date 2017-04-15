@@ -42,13 +42,12 @@ httplib.HTTPConnection.send = __fast_http_send
 httplib.HTTPSConnection.send = __fast_http_send
 
 
-def upload_many(metadata_map, upload_functions):
+def upload_many(metadata_map, upload_func):
     # pylint: disable=missing-docstring
     for filepath, metadata in metadata_map.iteritems():
-        for upload_func in upload_functions:
-            success = metadata_upload(filepath, metadata, upload_func)
-            if not success:
-                return False
+        success = metadata_upload(filepath, metadata, upload_func)
+        if not success:
+            return False
     return True
 
 
