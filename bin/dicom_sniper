@@ -72,6 +72,8 @@ matched_series_cnt = len(matched_series)
 log.info('Found %d DICOM Series in %d Studies', matched_series_cnt, len(scu_studies))
 for study in sorted(scu_studies, key=lambda study: study.StudyDate + study.StudyTime):
     log.info('  %s %s %s', study.StudyDate, study.StudyTime, study.StudyInstanceUID)
+    for series_uid in matched_series:
+        log.info('    %s', series_uid)
 
 if not args.yes:
     try:
