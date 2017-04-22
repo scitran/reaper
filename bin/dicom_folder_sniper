@@ -1,0 +1,177 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# vim: filetype=python
+
+import os
+import sys
+import copy
+import json
+import logging
+import argparse
+
+import dicom
+
+import reaper.util
+import reaper.upload
+import reaper.tempdir as tempfile
+
+logging.basicConfig(
+    format='%(message)s',
+)
+log = logging.getLogger()
+
+
+def scandir(path, group_derived_series=False, symlinks=False):
+    log.info('Scanning subfolders')
+    sessions = {}
+
+    for dirpath, dirnames, filenames in os.walk(path, followlinks=symlinks):
+        dirnames[:] = [dn for dn in dirnames if not dn.startswith('.')] # use slice assignment to influence walk
+        filepaths = [os.path.join(dirpath, fn) for fn in filenames if not fn.startswith('.')] # ignore dotfiles
+        log.info('  %s', os.path.relpath(dirpath, path))
+
+        for fp in filepaths:
+            try:
+                dcm = dicom.read_file(fp, stop_before_pixels=True)
+            except dicom.errors.InvalidDicomError:
+                log.info('    Ignoring non-DICOM file %s', fp)
+                continue
+
+            try:
+                study_uid = dcm.StudyInstanceUID
+                series_uid = dcm.SeriesInstanceUID
+                primary_series_uid = dcm.get('RelatedSeriesSequence', [{}])[0].get('SeriesInstanceUID')
+                image_uid = dcm.SOPInstanceUID
+            except AttributeError:
+                log.warning('%s does not contain all required DICOM UIDs - skipping', fp)
+                continue
+
+            acq_uid = primary_series_uid if primary_series_uid and group_derived_series else series_uid
+
+            subj_id = dcm.get('PatientID') or 'Unknown'
+            sess_label = dcm.get('StudyDescription') or dcm.get('ProtocolName') or 'Untitled'
+            acq_label = dcm.get('SeriesDescription') or 'Untitled'
+            ds_label = (str(dcm.get('SeriesNumber')) or 'Untitled') + (' - ' +  acq_label if group_derived_series else '')
+
+            sess = sessions.setdefault(study_uid, {
+                'subject': subj_id,
+                'label': sess_label,
+                'acquisitions': {},
+            })
+            acq = sess['acquisitions'].setdefault(acq_uid, {
+                'label': acq_label,
+                'datasets': {},
+            })
+            ds = acq['datasets'].setdefault(series_uid, {
+                'type': dcm.get('ImageType'), # for debug purposes only
+                'label': ds_label,
+                'images': {},
+            })
+            ds['images'][image_uid] = fp
+
+            if group_derived_series and not primary_series_uid:
+                acq['label'] = acq_label # force the label for primary series
+
+    return sessions
+
+
+def emit_summary(sessions):
+    sess_cnt = len(sessions)
+    acq_cnt = sum([len(sess['acquisitions']) for sess in sessions.itervalues()])
+    file_cnt = ds_cnt = 0
+    for sess in sessions.itervalues():
+        for acq in sess['acquisitions'].itervalues():
+            for ds in acq['datasets'].itervalues():
+                file_cnt += len(ds['images'])
+                ds_cnt += 1
+    log.info('Found %d Acquisition(s) in %d Session(s)', acq_cnt, sess_cnt)
+    log.info('Will upload %d DICOM files as %d datasets', file_cnt, ds_cnt)
+
+    if log.isEnabledFor(logging.DEBUG):
+        sessions = copy.deepcopy(sessions)
+        for sess in sessions.itervalues():
+            for acq in sess['acquisitions'].itervalues():
+                for ds in acq['datasets'].itervalues():
+                    ds['images'] = len(ds['images'])
+        log.debug('\n%s\n', json.dumps(sessions, indent=4, separators=(',', ': '), sort_keys=True))
+
+
+def upload(sessions, group, project, upload_function):
+    metadata = {}
+    metadata['group'] = {'_id': group}
+    metadata['project'] = {'label': project}
+    for sess in sessions.itervalues():
+        metadata['session'] = {}
+        metadata['session']['label'] = sess['label']
+        metadata['session']['subject'] = sess['subject']
+        for acq in sess['acquisitions'].itervalues():
+            metadata['acquisition'] = {}
+            metadata['acquisition']['label'] = acq['label']
+            metadata['acquisition']['files'] = {'type': 'dicom'}
+            for ds in acq['datasets'].itervalues():
+                metadata['acquisition']['files']['name'] = ds['label']
+                print group, project, sess['label'], sess['subject'], acq['label'], ds['label']
+                with tempfile.TemporaryDirectory() as tempdir:
+                    paths = [path for path in ds['images'].itervalues()]
+                    archive = reaper.util.create_archive(paths, ds['label'], outdir=tempdir)
+                    upload_function(archive, metadata)
+
+
+DESCRIPTION = u"""
+"""
+
+
+def main():
+    arg_parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=argparse.RawDescriptionHelpFormatter)
+    arg_parser.add_argument('path', help='path to reap')
+    arg_parser.add_argument('uri', help='API URL')
+    arg_parser.add_argument('group', help='Group ID')
+    arg_parser.add_argument('project', help='Project Name')
+    arg_parser.add_argument('-g', '--group-series', action='store_true', help='group derived Series into the same Acquisition')
+    arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
+    arg_parser.add_argument('-y', '--yes', action='store_true', help='do not prompt to continue')
+    arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
+    arg_parser.add_argument('-s', '--symlinks', action='store_true', help='follow symbolic links that resolve to directories')
+    arg_parser.add_argument('--root', action='store_true', help='send API requests as site admin')
+
+    auth_group = arg_parser.add_mutually_exclusive_group()
+    auth_group.add_argument('--secret', help='shared API secret')
+    auth_group.add_argument('--key', help='user API key')
+
+    args = arg_parser.parse_args(sys.argv[1:] or ['--help'])
+
+    log.setLevel(getattr(logging, args.loglevel.upper()))
+    log.debug(args)
+
+    args.path = os.path.expanduser(args.path)
+    if not os.path.isdir(args.path):
+        log.error('Path        %s is not a directory or does not exist', args.path)
+        sys.exit(1)
+
+    secret_info = ('DICOM Folder Sniper', 'System Import', args.secret) if args.secret else None
+    api_request, upload_function = reaper.upload.upload_function(args.uri, secret_info, args.key, args.root, args.insecure, '/upload/label')
+
+    sessions = scandir(args.path, args.group_series, args.symlinks)
+    emit_summary(sessions)
+    if not args.yes:
+        try:
+            raw_input('\nPress Enter to process and upload all data or Ctrl-C to abort...')
+        except KeyboardInterrupt:
+            print
+            sys.exit(1)
+
+    try:
+        #upsert_groups(groups, api_request) FIXME check for write access to project
+        upload(sessions, args.group, args.project, upload_function)
+    except Exception as ex:
+        log.critical(str(ex))
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
+
+
+## FIXME SeriesDescription of derived series is lost
+## FIXME What do we use for the filename? SeriesNumber or SeriesNumber + SeriesDescription?
