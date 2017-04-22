@@ -8,18 +8,16 @@ import logging
 import argparse
 import datetime
 
-## configure logging before reaper.util does
-logging.basicConfig(
-    format='%(message)s',
-    level=logging.INFO,
-)
-log = logging.getLogger('dicom_sniper')
-
 import reaper.dcm
 import reaper.scu
 import reaper.util
 import reaper.upload
 import reaper.tempdir as tempfile
+
+logging.basicConfig(
+    format='%(message)s',
+)
+log = logging.getLogger()
 
 
 arg_parser = argparse.ArgumentParser()

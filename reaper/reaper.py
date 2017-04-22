@@ -14,6 +14,11 @@ from . import util
 from . import upload
 from . import tempdir as tempfile
 
+logging.basicConfig(
+    format='%(asctime)s %(name)16.16s:%(levelname)4.4s %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    level=logging.INFO,
+)
 log = logging.getLogger('reaper')
 
 SLEEPTIME = 60

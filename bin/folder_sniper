@@ -13,14 +13,14 @@ import reaper.upload
 import reaper.tempdir as tempfile
 
 logging.basicConfig(
-    format='%(asctime)s %(levelname)8.8s %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
+    format='%(message)s',
 )
 log = logging.getLogger()
 
 
 def scan_folder(path, symlinks=False):
     projects = []
+    log.info('Inspecting  %s', path)
     for dirpath, dirnames, filenames in os.walk(path, followlinks=symlinks):
         filenames = [fn for fn in filenames if not fn.startswith('.')]      # ignore dotfiles
         dirnames[:] = [dn for dn in dirnames if not dn.startswith('.')]     # use slice assignment to influence walk
@@ -189,7 +189,10 @@ def main():
     if not os.path.isdir(args.path):
         log.error('Path        %s is not a directory or does not exist', args.path)
         sys.exit(1)
-    log.info('Inspecting  %s', args.path)
+
+    secret_info = ('Folder Sniper', 'System Import', args.secret) if args.secret else None
+    api_request, upload_function = reaper.upload.upload_function(args.uri, secret_info, args.key, args.root, args.insecure, '/api/upload/label')
+
     groups, projects = scan_folder(args.path, args.symlinks)
     if not args.yes:
         print_upload_summary(projects)
@@ -199,8 +202,6 @@ def main():
             print
             sys.exit(1)
 
-    secret_info = ('Folder Sniper', 'System Import', args.secret) if args.secret else None
-    api_request, upload_function = reaper.upload.upload_function(args.uri, secret_info, args.key, args.root, args.insecure, '/api/upload/label')
     try:
         upsert_groups(groups, api_request)
         process(projects, upload_function)
