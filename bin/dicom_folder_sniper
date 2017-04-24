@@ -5,8 +5,6 @@
 
 import os
 import sys
-import copy
-import json
 import logging
 import argparse
 
@@ -23,7 +21,7 @@ log = logging.getLogger()
 
 
 def scandir(path, group_derived_series=False, symlinks=False):
-    log.info('Scanning subfolders')
+    log.warning('Scanning subfolders')
     sessions = {}
 
     for dirpath, dirnames, filenames in os.walk(path, followlinks=symlinks):
@@ -52,7 +50,7 @@ def scandir(path, group_derived_series=False, symlinks=False):
             subj_id = dcm.get('PatientID') or 'Unknown'
             sess_label = dcm.get('StudyDescription') or dcm.get('ProtocolName') or 'Untitled'
             acq_label = dcm.get('SeriesDescription') or 'Untitled'
-            ds_label = (str(dcm.get('SeriesNumber')) or 'Untitled') + (' - ' +  acq_label if group_derived_series else '')
+            ds_label = (str(dcm.get('SeriesNumber')) or 'Unknown') + ' - ' +  acq_label
 
             sess = sessions.setdefault(study_uid, {
                 'subject': subj_id,
@@ -73,10 +71,11 @@ def scandir(path, group_derived_series=False, symlinks=False):
             if group_derived_series and not primary_series_uid:
                 acq['label'] = acq_label # force the label for primary series
 
+    log.info('')
     return sessions
 
 
-def emit_summary(sessions):
+def emit_summary(sessions, project, group):
     sess_cnt = len(sessions)
     acq_cnt = sum([len(sess['acquisitions']) for sess in sessions.itervalues()])
     file_cnt = ds_cnt = 0
@@ -85,37 +84,41 @@ def emit_summary(sessions):
             for ds in acq['datasets'].itervalues():
                 file_cnt += len(ds['images'])
                 ds_cnt += 1
-    log.info('Found %d Acquisition(s) in %d Session(s)', acq_cnt, sess_cnt)
-    log.info('Will upload %d DICOM files as %d datasets', file_cnt, ds_cnt)
+    log.warning('Found %d Acquisition(s) in %d Session(s)', acq_cnt, sess_cnt)
+    log.warning('Will upload %d DICOM files as %d datasets', file_cnt, ds_cnt)
 
-    if log.isEnabledFor(logging.DEBUG):
-        sessions = copy.deepcopy(sessions)
+    if log.isEnabledFor(logging.INFO):
+        log.info('\nEstablished hierarchy:')
+        log.info('%s\n  %s', project, group)
         for sess in sessions.itervalues():
+            log.info('    ' + sess['label'])
             for acq in sess['acquisitions'].itervalues():
+                log.info('      ' + acq['label'])
                 for ds in acq['datasets'].itervalues():
-                    ds['images'] = len(ds['images'])
-        log.debug('\n%s\n', json.dumps(sessions, indent=4, separators=(',', ': '), sort_keys=True))
+                    log.info('        %s (%d images)', ds['label'], len(ds['images']))
+        log.info('')
 
 
 def upload(sessions, group, project, upload_function):
     metadata = {}
     metadata['group'] = {'_id': group}
     metadata['project'] = {'label': project}
-    for sess in sessions.itervalues():
+    for sid, sess in sessions.iteritems():
         metadata['session'] = {}
+        metadata['session']['uid'] = sid
         metadata['session']['label'] = sess['label']
-        metadata['session']['subject'] = sess['subject']
-        for acq in sess['acquisitions'].itervalues():
+        metadata['session']['subject'] = {'code': sess['subject']}
+        for aid, acq in sess['acquisitions'].iteritems():
             metadata['acquisition'] = {}
+            metadata['acquisition']['uid'] = aid
             metadata['acquisition']['label'] = acq['label']
-            metadata['acquisition']['files'] = {'type': 'dicom'}
             for ds in acq['datasets'].itervalues():
-                metadata['acquisition']['files']['name'] = ds['label']
-                print group, project, sess['label'], sess['subject'], acq['label'], ds['label']
                 with tempfile.TemporaryDirectory() as tempdir:
                     paths = [path for path in ds['images'].itervalues()]
                     archive = reaper.util.create_archive(paths, ds['label'], outdir=tempdir)
-                    upload_function(archive, metadata)
+                    archive_name = os.path.basename(archive)
+                    metadata['acquisition']['files'] = [{'type': 'dicom', 'name': archive_name}]
+                    reaper.upload.metadata_upload(archive, metadata, upload_function)
 
 
 DESCRIPTION = u"""
@@ -131,7 +134,7 @@ def main():
     arg_parser.add_argument('-g', '--group-series', action='store_true', help='group derived Series into the same Acquisition')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-y', '--yes', action='store_true', help='do not prompt to continue')
-    arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
+    arg_parser.add_argument('-l', '--loglevel', default='warning', help='log level [INFO]')
     arg_parser.add_argument('-s', '--symlinks', action='store_true', help='follow symbolic links that resolve to directories')
     arg_parser.add_argument('--root', action='store_true', help='send API requests as site admin')
 
@@ -142,7 +145,7 @@ def main():
     args = arg_parser.parse_args(sys.argv[1:] or ['--help'])
 
     log.setLevel(getattr(logging, args.loglevel.upper()))
-    log.debug(args)
+    log.debug('Parsed arguments:\n%s\n', vars(args))
 
     args.path = os.path.expanduser(args.path)
     if not os.path.isdir(args.path):
@@ -153,10 +156,10 @@ def main():
     api_request, upload_function = reaper.upload.upload_function(args.uri, secret_info, args.key, args.root, args.insecure, '/upload/label')
 
     sessions = scandir(args.path, args.group_series, args.symlinks)
-    emit_summary(sessions)
+    emit_summary(sessions, args.group, args.project)
     if not args.yes:
         try:
-            raw_input('\nPress Enter to process and upload all data or Ctrl-C to abort...')
+            raw_input('Press Enter to process and upload all data or Ctrl-C to abort...')
         except KeyboardInterrupt:
             print
             sys.exit(1)
