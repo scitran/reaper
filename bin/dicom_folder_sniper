@@ -5,11 +5,13 @@
 
 import os
 import sys
+import shutil
 import logging
 import argparse
 
-import dicom
+import dicom # FIXME should use reaper.dcm instead
 
+import reaper.dcm
 import reaper.util
 import reaper.upload
 import reaper.tempdir as tempfile
@@ -99,7 +101,7 @@ def emit_summary(sessions, project, group):
         log.info('')
 
 
-def upload(sessions, group, project, upload_function):
+def upload(sessions, group, project, upload_function, de_identify=False):
     metadata = {}
     metadata['group'] = {'_id': group}
     metadata['project'] = {'label': project}
@@ -114,10 +116,18 @@ def upload(sessions, group, project, upload_function):
             metadata['acquisition']['label'] = acq['label']
             for ds in acq['datasets'].itervalues():
                 with tempfile.TemporaryDirectory() as tempdir:
-                    paths = [path for path in ds['images'].itervalues()]
+                    if de_identify:
+                        paths = []
+                        log.info('De-id\'ing    %s', ds['label'])
+                        for filepath in ds['images'].itervalues():
+                            newpath = os.path.join(tempdir, os.path.basename(filepath))
+                            paths.append(newpath)
+                            shutil.copyfile(filepath, newpath)
+                            reaper.dcm.DicomFile(newpath, de_identify=True)
+                    else:
+                        paths = [path for path in ds['images'].itervalues()]
                     archive = reaper.util.create_archive(paths, ds['label'], outdir=tempdir)
-                    archive_name = os.path.basename(archive)
-                    metadata['acquisition']['files'] = [{'type': 'dicom', 'name': archive_name}]
+                    metadata['acquisition']['files'] = [{'type': 'dicom', 'name': os.path.basename(archive)}]
                     reaper.upload.metadata_upload(archive, metadata, upload_function)
 
 
@@ -132,6 +142,7 @@ def main():
     arg_parser.add_argument('group', help='Group ID')
     arg_parser.add_argument('project', help='Project Name')
     arg_parser.add_argument('-g', '--group-series', action='store_true', help='group derived Series into the same Acquisition')
+    arg_parser.add_argument('-d', '--de-identify', action='store_true', help='de-identify data before upload')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-y', '--yes', action='store_true', help='do not prompt to continue')
     arg_parser.add_argument('-l', '--loglevel', default='warning', help='log level [INFO]')
@@ -166,7 +177,7 @@ def main():
 
     try:
         #upsert_groups(groups, api_request) FIXME check for write access to project
-        upload(sessions, args.group, args.project, upload_function)
+        upload(sessions, args.group, args.project, upload_function, args.de_identify)
     except Exception as ex:
         log.critical(str(ex))
         sys.exit(1)
@@ -174,7 +185,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-## FIXME SeriesDescription of derived series is lost
-## FIXME What do we use for the filename? SeriesNumber or SeriesNumber + SeriesDescription?

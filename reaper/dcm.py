@@ -17,7 +17,7 @@ GEMS_TYPE_SCREENSHOT = ['DERIVED', 'SECONDARY', 'SCREEN SAVE']
 GEMS_TYPE_VXTL = ['DERIVED', 'SECONDARY', 'VXTL STATE']
 
 
-def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None):
+def pkg_series(_id, path, map_key, opt_key=None, de_identify=False, timezone=None):
     # pylint: disable=missing-docstring
     dcm_dict = {}
     log.debug('Inspecting   %s', _id)
@@ -29,7 +29,7 @@ def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None)
         dcm_dict.setdefault(dcm.acq_no, []).append(filepath)
     duration = (datetime.datetime.utcnow() - start).total_seconds()
     log.info('Inspected    %s, %d images in %.1fs [%.0f/s]', _id, file_cnt, duration, file_cnt / duration)
-    log.debug('Compressing  %s%s', _id, ' (and anonymizing)' if anonymize else '')
+    log.debug('Compressing  %s%s', _id, ' (and anonymizing)' if de_identify else '')
     metadata_map = {}
     start = datetime.datetime.utcnow()
     for acq_no, acq_paths in dcm_dict.iteritems():
@@ -38,7 +38,7 @@ def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None)
         arcdir_path = os.path.join(path, '..', dir_name)
         os.mkdir(arcdir_path)
         for filepath in acq_paths:
-            dcm = DicomFile(filepath, map_key, opt_key, parse=True, anonymize=anonymize, timezone=timezone)
+            dcm = DicomFile(filepath, map_key, opt_key, parse=True, de_identify=de_identify, timezone=timezone)
             filename = os.path.basename(filepath)
             if filename.startswith('(none)'):
                 filename = filename.replace('(none)', 'NA')
@@ -52,7 +52,7 @@ def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None)
         metadata_map[arc_path] = metadata
     duration = (datetime.datetime.utcnow() - start).total_seconds()
     log.info('Compressed   %s%s, %d images in %.1fs [%.0f/s]',
-             _id, ' (and anonymized)' if anonymize else '', file_cnt, duration, file_cnt / duration)
+             _id, ' (and anonymized)' if de_identify else '', file_cnt, duration, file_cnt / duration)
     return metadata_map
 
 
@@ -64,15 +64,13 @@ class DicomFile(object):
 
     # pylint: disable=too-few-public-methods
 
-    def __init__(self, filepath, map_key, opt_key=None, parse=False, anonymize=False, timezone=None):
-        if not parse and anonymize:
-            raise Exception('Cannot anonymize DICOM file without parsing')
-        dcm = dicom.read_file(filepath, stop_before_pixels=(not anonymize))
-        self._id = dcm.get(map_key, '')
+    def __init__(self, filepath, map_key=None, opt_key=None, parse=False, de_identify=False, timezone=None):
+        dcm = dicom.read_file(filepath, stop_before_pixels=(not de_identify))
+        self._id = dcm.get(map_key, '') if opt_key else None
         self.opt = dcm.get(opt_key, '') if opt_key else None
         self.acq_no = str(dcm.get('AcquisitionNumber', '')) or None if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
 
-        if parse:
+        if parse or de_identify:
             series_uid = dcm.get('SeriesInstanceUID')
             if self.__is_screenshot(dcm.get('ImageType')):
                 front, back = series_uid.rsplit('.', 1)
@@ -90,7 +88,7 @@ class DicomFile(object):
             self.acquisition_label = dcm.get('SeriesDescription')
             self.file_type = FILETYPE
 
-        if parse and anonymize:
+        if de_identify:
             self.subject_firstname = self.subject_lastname = None
             if dcm.get('PatientBirthDate'):
                 dob = self.__parse_patient_dob(dcm.PatientBirthDate)
@@ -112,7 +110,7 @@ class DicomFile(object):
     @staticmethod
     def __timestamp(date, time, timezone):
         # pylint: disable=missing-docstring
-        if date and time:
+        if date and time and timezone:
             return util.localize_timestamp(datetime.datetime.strptime(date + time[:6], '%Y%m%d%H%M%S'), timezone)
         return None
 
