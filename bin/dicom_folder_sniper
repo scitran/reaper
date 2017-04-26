@@ -28,7 +28,7 @@ DEFAULT_FIELD_NAMES = {
 }
 
 
-def scandir(path, group_derived_series=False, symlinks=False, **kwargs):
+def scandir(path, group_related_series=False, symlinks=False, **kwargs):
     field_names = DEFAULT_FIELD_NAMES
     field_names.update(kwargs)
 
@@ -42,7 +42,7 @@ def scandir(path, group_derived_series=False, symlinks=False, **kwargs):
         for fp in filepaths:
             try:
                 dcm = reaper.dcm.DicomFile(fp)
-            except dicom.errors.InvalidDicomError:
+            except reaper.dcm.DicomFileError:
                 log.info('    Ignoring non-DICOM file %s', fp)
                 continue
 
@@ -55,7 +55,7 @@ def scandir(path, group_derived_series=False, symlinks=False, **kwargs):
                 log.warning('%s does not contain all required DICOM UIDs - skipping', fp)
                 continue
 
-            acq_uid = primary_series_uid if primary_series_uid and group_derived_series else series_uid
+            acq_uid = primary_series_uid if primary_series_uid and group_related_series else series_uid
 
             subj_code = dcm.get_tag(field_names['subject_code'], 'Unknown')
             sess_label = dcm.get_tag(field_names['session_label'], 'Untitled')
@@ -78,7 +78,7 @@ def scandir(path, group_derived_series=False, symlinks=False, **kwargs):
             })
             ds['images'][image_uid] = fp
 
-            if group_derived_series and not primary_series_uid:
+            if group_related_series and not primary_series_uid:
                 acq['label'] = acq_label # force the label for primary series
 
     log.info('')
@@ -98,14 +98,14 @@ def emit_summary(sessions, project, group):
     log.warning('Will upload %d DICOM files as %d datasets', file_cnt, ds_cnt)
 
     if log.isEnabledFor(logging.INFO):
-        log.info('\nEstablished hierarchy:')
-        log.info('%s\n  %s', project, group)
+        log.info('\nDerived hierarchy')
+        log.info('  %s\n    %s', project, group)
         for sess in sessions.itervalues():
-            log.info('    ' + sess['label'] + ' >>> ' + sess['subject'])
+            log.info('      ' + sess['label'] + ' >>> ' + sess['subject'])
             for acq in sess['acquisitions'].itervalues():
-                log.info('      ' + acq['label'])
+                log.info('        ' + acq['label'])
                 for ds in acq['datasets'].itervalues():
-                    log.info('        %s (%d images)', ds['label'], len(ds['images']))
+                    log.info('          %s (%d images)', ds['label'], len(ds['images']))
         log.info('')
 
 
@@ -159,7 +159,7 @@ def main():
     auth_group.add_argument('--secret', help='shared API secret')
     auth_group.add_argument('--key', help='user API key')
 
-    arg_parser.add_argument('--group-series', action='store_true', help='group derived Series into the same Acquisition')
+    arg_parser.add_argument('--group-related-series', action='store_true', help='group derived Series into the same Acquisition')
     arg_parser.add_argument('--de-identify', action='store_true', help='de-identify data before upload')
     arg_parser.add_argument('--tag-override', nargs=2, action='append', default=[], help='DICOM tag override')
 
@@ -178,7 +178,7 @@ def main():
 
     tag_override = {k: v if v.lower() != 'null' else None for k, v in args.tag_override}
 
-    sessions = scandir(args.path, args.group_series, args.symlinks, **tag_override)
+    sessions = scandir(args.path, args.group_related_series, args.symlinks, **tag_override)
     emit_summary(sessions, args.group, args.project)
     if not args.yes:
         try:
@@ -186,6 +186,7 @@ def main():
         except KeyboardInterrupt:
             print
             sys.exit(1)
+    log.info('')
 
     try:
         #upsert_groups(groups, api_request) FIXME check for write access to project

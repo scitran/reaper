@@ -70,7 +70,7 @@ def upload_function(uri, secret_info=None, key=None, root=False, insecure=False,
     """Helper to get an appropriate upload function based on protocol"""
     if uri.startswith('http://') or uri.startswith('https://'):
         return __http_upload(uri.strip('/'), secret_info, key, root, insecure, upload_route)
-    elif uri.startswith('testing://'):
+    elif uri.startswith('dummy://'):
         return lambda method, route, **kwargs: True, lambda filepath, metadata: True
     elif uri.startswith('s3://'):
         return __s3_upload
