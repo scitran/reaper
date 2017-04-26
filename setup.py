@@ -13,10 +13,10 @@ install_requires = [
 
 setup(
     name = 'reaper',
-    version = '1.0.7',
+    version = '2.0.0',
     description = 'SciTran Instrument Integration',
     author = 'Gunnar Schaefer',
-    author_email = 'gsfr@stanford.edu',
+    author_email = 'gsfr@flywheel.io',
     url = 'https://github.com/scitran/reaper',
     license = 'MIT',
     packages = find_packages(),
