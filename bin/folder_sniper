@@ -18,11 +18,8 @@ logging.basicConfig(
 )
 log = logging.getLogger()
 
-OAUTH_TOKEN_VAR = 'SCITRAN_REAPER_OAUTH_TOKEN'
-
 
 def scan_folder(path, symlinks=False):
-    # pylint: disable=missing-docstring
     projects = []
     for dirpath, dirnames, filenames in os.walk(path, followlinks=symlinks):
         filenames = [fn for fn in filenames if not fn.startswith('.')]      # ignore dotfiles
@@ -64,7 +61,6 @@ def scan_folder(path, symlinks=False):
 
 
 def print_upload_summary(projects):
-    # pylint: disable=missing-docstring
     group_cnt = len(set([proj['group'] for proj in projects]))
     session_cnt = sum([len(proj['sessions']) for proj in projects])
     file_cnt = packfile_cnt = 0
@@ -80,7 +76,6 @@ def print_upload_summary(projects):
 
 
 def file_metadata(f, **kwargs):
-    # pylint: disable=missing-docstring
     md = {'name': os.path.basename(f['path'])}
     if f.get('type') is not None:
         md['type'] = f['type']
@@ -89,7 +84,6 @@ def file_metadata(f, **kwargs):
 
 
 def upsert_groups(groups, api_request):
-    # pylint: disable=missing-docstring
     for group in groups:
         success = api_request('post', '/groups', json={'_id': group.lower()})
         if success:
@@ -99,7 +93,6 @@ def upsert_groups(groups, api_request):
 
 
 def process(projects, upload_func):
-    # pylint: disable=missing-docstring
     action_str = 'Upserting %sfiles to %s'
     file_str = '  %s %s'
 
@@ -174,7 +167,6 @@ example-tree
 
 
 def main():
-    # pylint: disable=missing-docstring
     arg_parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=argparse.RawDescriptionHelpFormatter)
     arg_parser.add_argument('path', help='path to reap')
     arg_parser.add_argument('uri', help='API URL')
@@ -182,21 +174,16 @@ def main():
     arg_parser.add_argument('-y', '--yes', action='store_true', help='do not prompt to continue')
     arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
     arg_parser.add_argument('-s', '--symlinks', action='store_true', help='follow symbolic links that resolve to directories')
-    arg_parser.add_argument('--oauth', action='store_true', help='read OAuth token from ' + OAUTH_TOKEN_VAR)
     arg_parser.add_argument('--root', action='store_true', help='send API requests as site admin')
+
+    auth_group = arg_parser.add_mutually_exclusive_group()
+    auth_group.add_argument('--secret', help='shared API secret')
+    auth_group.add_argument('--key', help='user API key')
 
     args = arg_parser.parse_args(sys.argv[1:] or ['--help'])
 
     log.setLevel(getattr(logging, args.loglevel.upper()))
     log.debug(args)
-
-    if args.oauth:
-        auth_token = os.environ.get(OAUTH_TOKEN_VAR)
-        if not auth_token:
-            log.critical(OAUTH_TOKEN_VAR + ' empty or undefined')
-            sys.exit(1)
-    else:
-        auth_token = None
 
     args.path = os.path.expanduser(args.path)
     if not os.path.isdir(args.path):
@@ -212,12 +199,11 @@ def main():
             print
             sys.exit(1)
 
-    client_info = ('importer', 'admin import')
-    api_request, upload_func = reaper.upload.upload_function(args.uri, client_info, args.root, auth_token, args.insecure, '/upload/label')
+    secret_info = ('Folder Sniper', 'System Import', args.secret) if args.secret else None
+    api_request, upload_function = reaper.upload.upload_function(args.uri, secret_info, args.key, args.root, args.insecure, '/upload/label')
     try:
         upsert_groups(groups, api_request)
-        process(projects, upload_func)
-    # pylint: disable=broad-except
+        process(projects, upload_function)
     except Exception as ex:
         log.critical(str(ex))
         sys.exit(1)
