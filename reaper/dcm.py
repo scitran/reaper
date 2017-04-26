@@ -65,7 +65,7 @@ class DicomFile(object):
     # pylint: disable=too-few-public-methods
 
     def __init__(self, filepath, map_key=None, opt_key=None, parse=False, de_identify=False, timezone=None):
-        dcm = dicom.read_file(filepath, stop_before_pixels=(not de_identify))
+        self.raw = dcm = dicom.read_file(filepath, stop_before_pixels=(not de_identify))
         self._id = dcm.get(map_key, '') if opt_key else None
         self.opt = dcm.get(opt_key, '') if opt_key else None
         self.acq_no = str(dcm.get('AcquisitionNumber', '')) or None if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
@@ -99,6 +99,11 @@ class DicomFile(object):
             if dcm.get('PatientName'):
                 del dcm.PatientName
             dcm.save_as(filepath)
+
+    def get_tag(self, tag_name, default=None):
+        if tag_name:
+            return str(self.raw.get(tag_name)).strip('\x00') or default
+        return default
 
     @staticmethod
     def __is_screenshot(image_type):
