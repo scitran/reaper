@@ -4,7 +4,7 @@
 # Example usage is in README.md
 #
 
-FROM ubuntu:16.04
+FROM ubuntu:trusty-20170330
 
 
 # Install pre-requisites
