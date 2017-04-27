@@ -1,51 +1,21 @@
-#
-# Image used for execution of reaper functions.
-#
-# Example usage is in README.md
-#
+FROM buildpack-deps:xenial
 
-FROM ubuntu:trusty-20170330
-
-
-# Install pre-requisites
-RUN apt-get update \
-  && apt-get install -y \
-    build-essential \
-    ca-certificates curl \
-    libatlas3-base \
-    numactl \
-    python-dev \
+RUN apt-get update && apt-get install -y \
     python-pip \
-    libffi-dev \
-    libssl-dev \
-    git \
-  && rm -rf /var/lib/apt/lists/* \
-  && pip install -U pip
+ && rm -rf /var/lib/apt/lists/* \
+ && pip install --upgrade pip setuptools wheel
 
-
-COPY movescu.cc.patch /tmp/
+COPY movescu.cc.patch /tmp
 RUN cd /tmp \
-  && curl http://dicom.offis.de/download/dcmtk/snapshot/old/dcmtk-3.6.1_20150924.tar.gz | tar xz \
-  && cd dcmtk-* \
-  && cat /tmp/movescu.cc.patch | patch --strip 1 \
-  && ./configure \
-  && make all \
-  && make install \
-  && cd /tmp \
-  && rm -rf dcmtk-* \
-  && rm movescu.cc.patch
+ && curl http://support.dcmtk.org/redmine/attachments/download/87/dcmtk-3.6.1_20150924.tar.gz | tar xz \
+ && cd dcmtk-* \
+ && patch --strip 1 </tmp/movescu.cc.patch \
+ && ./configure \
+ && make config-all ofstd-all oflog-all dcmdata-all dcmimgle-all dcmimage-all dcmjpeg-all dcmjpls-all dcmtls-all dcmnet-all \
+ && make dcmnet-install \
+ && rm -rf /tmp/movescu.cc.patch /tmp/dcmtk-*
 
+COPY . /src/reaper
 
-COPY bin /var/scitran/code/reaper/bin/
-COPY reaper /var/scitran/code/reaper/reaper/
-COPY LICENSE setup.py /var/scitran/code/reaper/
-
-RUN locale-gen en_US.UTF-8
-ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
-RUN pip install --upgrade -e /var/scitran/code/reaper
-
-
-# Inject build information into image
-ARG BRANCH_LABEL=NULL
-ARG COMMIT_HASH=0
-LABEL io.github.scitran.branch="${BRANCH_LABEL}" io.github.scitran.commit-hash="${COMMIT_HASH}"
+ENV LC_ALL="C.UTF-8"
+RUN pip install -e /src/reaper
