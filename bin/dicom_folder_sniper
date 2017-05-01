@@ -109,7 +109,7 @@ def emit_summary(sessions, project, group):
         log.info('')
 
 
-def upload(sessions, group, project, upload_function, de_identify=False):
+def upload(sessions, group, project, upload_function, de_identify=False, timezone=None):
     metadata = {}
     metadata['group'] = {'_id': group}
     metadata['project'] = {'label': project}
@@ -131,9 +131,10 @@ def upload(sessions, group, project, upload_function, de_identify=False):
                             newpath = os.path.join(tempdir, os.path.basename(filepath))
                             paths.append(newpath)
                             shutil.copyfile(filepath, newpath)
-                            reaper.dcm.DicomFile(newpath, de_identify=True)
+                            reaper.dcm.DicomFile(newpath, de_identify=True, timezone=timezone)
                     else:
                         paths = [path for path in ds['images'].itervalues()]
+                    log.info('Packaging    %s', ds['label'])
                     archive = reaper.util.create_archive(paths, ds['label'], outdir=tempdir)
                     metadata['acquisition']['files'] = [{'type': 'dicom', 'name': os.path.basename(archive)}]
                     reaper.upload.metadata_upload(archive, metadata, upload_function)
@@ -151,6 +152,7 @@ def main():
     arg_parser.add_argument('project', help='Project Name')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-y', '--yes', action='store_true', help='do not prompt to continue')
+    arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
     arg_parser.add_argument('-l', '--loglevel', default='warning', help='log level [INFO]')
     arg_parser.add_argument('-s', '--symlinks', action='store_true', help='follow symbolic links that resolve to directories')
     arg_parser.add_argument('--root', action='store_true', help='send API requests as site admin')
@@ -167,6 +169,11 @@ def main():
 
     log.setLevel(getattr(logging, args.loglevel.upper()))
     log.debug('Parsed arguments:\n%s\n', vars(args))
+
+    args.timezone = reaper.util.validate_timezone(args.timezone)
+    if args.timezone is None:
+        log.error('invalid timezone')
+        sys.exit(1)
 
     args.path = os.path.expanduser(args.path)
     if not os.path.isdir(args.path):
@@ -190,9 +197,10 @@ def main():
 
     try:
         #upsert_groups(groups, api_request) FIXME check for write access to project
-        upload(sessions, args.group, args.project, upload_function, args.de_identify)
+        upload(sessions, args.group, args.project, upload_function, args.de_identify, args.timezone)
     except Exception as ex:
         log.critical(str(ex))
+        log.critical('Unexpected error - bailing out')
         sys.exit(1)
 
 

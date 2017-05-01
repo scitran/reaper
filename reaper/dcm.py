@@ -80,6 +80,8 @@ class DicomFile(object):
         self.acq_no = str(dcm.get('AcquisitionNumber', '')) or None if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
 
         if parse or de_identify:
+            if not timezone:
+                timezone = util.validate_timezone(None)
             series_uid = dcm.get('SeriesInstanceUID')
             if self.__is_screenshot(dcm.get('ImageType')):
                 front, back = series_uid.rsplit('.', 1)
@@ -101,7 +103,7 @@ class DicomFile(object):
             self.subject_firstname = self.subject_lastname = None
             if dcm.get('PatientBirthDate'):
                 dob = self.__parse_patient_dob(dcm.PatientBirthDate)
-                if dob:
+                if dob and study_datetime:
                     months = 12 * (study_datetime.year - dob.year) + (study_datetime.month - dob.month) - (study_datetime.day < dob.day)
                     dcm.PatientAge = '%03dM' % months if months < 960 else '%03dY' % (months / 12)
             dcm.pop('PatientBirthDate', None)
