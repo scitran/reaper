@@ -300,7 +300,7 @@ def main(cls, arg_parser_update=None):
 
     reaper = cls(vars(args))
     _, reaper.upload_function = upload.upload_function(
-        args.uri, ('reaper', reaper.id_, args.secret), insecure=args.insecure, upload_route='/upload/uid'
+        args.uri, ('reaper', reaper.id_, args.secret), insecure=args.insecure, upload_route='/api/upload/reaper'
     )
 
     def term_handler(signum, stack):
