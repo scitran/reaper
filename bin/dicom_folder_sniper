@@ -181,7 +181,7 @@ def main():
         sys.exit(1)
 
     secret_info = ('DICOM Folder Sniper', 'System Import', args.secret) if args.secret else None
-    api_request, upload_function = reaper.upload.upload_function(args.uri, secret_info, args.key, args.root, args.insecure, '/upload/label')
+    api_request, upload_function = reaper.upload.upload_function(args.uri, secret_info, args.key, args.root, args.insecure, '/api/upload/uid')
 
     tag_override = {k: v if v.lower() != 'null' else None for k, v in args.tag_override}
 

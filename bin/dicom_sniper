@@ -82,7 +82,7 @@ if not args.yes:
     else:
         print
 
-_, upload_function = reaper.upload.upload_function(args.uri, ('sniper', args.aec, args.secret), insecure=args.insecure, upload_route='/api/upload/reaper')
+_, upload_function = reaper.upload.upload_function(args.uri, ('sniper', args.aec, args.secret), insecure=args.insecure, upload_route='/api/upload/uid')
 
 for series_uid, series_info in matched_series.iteritems():
     with tempfile.TemporaryDirectory() as tempdir:
