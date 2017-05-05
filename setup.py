@@ -21,6 +21,5 @@ setup(
     license = 'MIT',
     packages = find_packages(),
     scripts = [os.path.join('bin', fn) for fn in os.listdir('bin') if not fn.startswith('.')],
-    package_data = {'': ['*.json']},
     install_requires =  install_requires,
 )
