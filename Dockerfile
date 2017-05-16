@@ -12,7 +12,7 @@ RUN cd /tmp \
  && patch --strip 1 </tmp/movescu.cc.patch \
  && ./configure \
  && make config-all ofstd-all oflog-all dcmdata-all dcmimgle-all dcmimage-all dcmjpeg-all dcmjpls-all dcmtls-all dcmnet-all \
- && make dcmnet-install \
+ && make dcmnet-install dcmdata-install \
  && rm -rf /tmp/movescu.cc.patch /tmp/dcmtk-*
 
 COPY . /src/reaper
