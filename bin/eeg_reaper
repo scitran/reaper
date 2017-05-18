@@ -1,0 +1,7 @@
+#!/usr/bin/env python
+
+# vim: filetype=python
+
+import reaper.eeg_reaper
+
+reaper.eeg_reaper.main()
