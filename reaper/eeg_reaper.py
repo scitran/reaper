@@ -3,7 +3,6 @@
 import os
 import sys
 import glob
-import gzip
 import shutil
 import logging
 import datetime
@@ -41,7 +40,7 @@ class EEGReaper(reaper.Reaper):
             log.warning(ex)
         for fp in filepaths:
             eeg = EEGFile(fp)
-            i_state[eeg._id] = reaper.ReaperItem(eeg.state, path=fp)
+            i_state[eeg.reap_id] = reaper.ReaperItem(eeg.reap_state, path=fp)
         return i_state
 
     def reap(self, _id, item, tempdir):
@@ -80,6 +79,8 @@ class EEGFile(object):
 
     """EEGFile class"""
 
+    # pylint: disable=too-few-public-methods
+
     def __init__(self, filepath):
         assert os.access(filepath, os.R_OK)
         self.filepath = filepath
@@ -95,13 +96,11 @@ class EEGFile(object):
 
         self.acquisition_timestamp = datetime.datetime.utcfromtimestamp(os.stat(filepath).st_ctime)
         self.file_type = FILETYPE
+        self.reap_id = self.session_uid + self.acquisition_uid
 
     @property
-    def _id(self):
-        return self.session_uid + self.acquisition_uid
-
-    @property
-    def state(self):
+    def reap_state(self):
+        """Return ReaperItem compatible state"""
         stats = os.stat(self.filepath)
         return {
             'mod_time': datetime.datetime.utcfromtimestamp(stats.st_mtime),
