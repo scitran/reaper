@@ -120,7 +120,7 @@ def write_state_file(path, state):
     os.rename(temp_path, path)
 
 
-def create_archive(content, arcname, metadata=None, outdir=None):
+def create_archive(content, arcname, rootdir=True, metadata=None, outdir=None):
     # pylint: disable=missing-docstring
     if hasattr(content, '__iter__'):
         outdir = outdir or os.path.curdir
@@ -134,7 +134,7 @@ def create_archive(content, arcname, metadata=None, outdir=None):
         if metadata is not None:
             zf.comment = json.dumps(metadata, default=metadata_encoder)
         for fn, fp in files:
-            zf.write(fp, os.path.join(arcname, fn))
+            zf.write(fp, os.path.join(arcname, fn) if rootdir else fn)
     return outpath
 
 
