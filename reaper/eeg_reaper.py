@@ -92,7 +92,7 @@ class EEGFile(object):
         path, self.session_uid = os.path.split(path)
         path, self.subject_code = os.path.split(path)
         path, self.project_label = os.path.split(path)
-        path, self.group_id = os.path.split(path)
+        path, self.group__id = os.path.split(path)
 
         self.acquisition_timestamp = datetime.datetime.utcfromtimestamp(os.stat(filepath).st_ctime)
         self.file_type = FILETYPE
