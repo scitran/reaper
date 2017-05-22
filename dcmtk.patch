@@ -1,6 +1,17 @@
-diff -Naur dcmtk-3.6.1_20150924/dcmnet/apps/movescu.cc dcmtk-3.6.1_20150924_patched/dcmnet/apps/movescu.cc
---- dcmtk-3.6.1_20150924/dcmnet/apps/movescu.cc	2015-09-24 05:27:10.000000000 -0700
-+++ dcmtk-3.6.1_20150924_patched/dcmnet/apps/movescu.cc	2016-03-28 16:03:13.666855196 -0700
+diff -Naur dcmtk-3.6.1_20150924/config/configure dcmtk-3.6.1_20150924.patch/config/configure
+--- dcmtk-3.6.1_20150924/config/configure	2015-09-24 07:27:10.000000000 -0500
++++ dcmtk-3.6.1_20150924.patch/config/configure	2017-04-27 17:26:22.000000000 -0500
+@@ -8551,7 +8551,6 @@
+   ac_fn_cxx_check_header_mongrel "$LINENO" "fenv.h" "ac_cv_header_fenv_h" "$ac_includes_default"
+ if test "x$ac_cv_header_fenv_h" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+-#define HAVE_FENV_H 1
+ _ACEOF
+ 
+ fi
+diff -Naur dcmtk-3.6.1_20150924/dcmnet/apps/movescu.cc dcmtk-3.6.1_20150924.patch/dcmnet/apps/movescu.cc
+--- dcmtk-3.6.1_20150924/dcmnet/apps/movescu.cc	2015-09-24 07:27:10.000000000 -0500
++++ dcmtk-3.6.1_20150924.patch/dcmnet/apps/movescu.cc	2017-04-27 17:51:26.000000000 -0500
 @@ -53,6 +53,12 @@
  
  #define OFFIS_CONSOLE_APPLICATION "movescu"
