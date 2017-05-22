@@ -54,14 +54,14 @@ def upload_many(metadata_map, upload_func):
 def metadata_upload(filepath, metadata, upload_func):
     # pylint: disable=missing-docstring
     filename = os.path.basename(filepath)
-    log.info('Uploading    %s [%s]', filename, util.hrsize(os.path.getsize(filepath)))
+    log.warning('Uploading    %s [%s]', filename, util.hrsize(os.path.getsize(filepath)))
     start = datetime.datetime.utcnow()
     success = upload_func(filepath, metadata)
     duration = (datetime.datetime.utcnow() - start).total_seconds()
     if success:
-        log.warning('Uploaded     %s [%s/s]', filename, util.hrsize(os.path.getsize(filepath) / duration))
+        log.info('Uploaded     %s [%s/s]', filename, util.hrsize(os.path.getsize(filepath) / duration))
     else:
-        log.warning('Failure      %s', filename)
+        log.error('Failure      %s', filename)
     return success
 
 

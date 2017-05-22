@@ -30,25 +30,28 @@ arg_parser.add_argument('uri', help='upload URI')
 arg_parser.add_argument('-A', '--no-anonymize', dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')
 arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
 arg_parser.add_argument('-k', '--query', nargs=2, action='append', default=[], help='query tuple')
-arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
+arg_parser.add_argument('-l', '--loglevel', default='warning', help='log level [WARNING]')
 arg_parser.add_argument('-y', '--yes', action='store_true', help='do not prompt to continue')
 arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
 arg_parser.add_argument('--map-key', default='PatientID', help='key for mapping info [PatientID], patterned as subject@group/project')
 
-auth_group = arg_parser.add_mutually_exclusive_group(required=True)
+auth_group = arg_parser.add_mutually_exclusive_group()
 auth_group.add_argument('--secret', help='shared API secret')
 auth_group.add_argument('--key', help='user API key')
+arg_parser.add_argument('--root', action='store_true', help='send API requests as site admin')
 
 args = arg_parser.parse_args(sys.argv[1:] or ['--help'])
 args.query = dict(args.query)
 
 args.timezone = reaper.util.validate_timezone(args.timezone)
 if args.timezone is None:
-    log.error('invalid timezone')
+    log.error('Invalid timezone')
     sys.exit(1)
 
 logging.root.setLevel(getattr(logging, args.loglevel.upper()))
 
+secret_info = ('DICOM Sniper', args.aec, args.secret) if args.secret else None
+_, upload_function = reaper.upload.upload_function(args.uri, secret_info, args.key, args.root, args.insecure, '/api/upload/uid')
 
 scu_ = reaper.scu.SCU(args.host, args.port, args.rport, args.aet, args.aec)
 
@@ -67,11 +70,11 @@ for study in scu_studies:
             'success': False,
         }
 matched_series_cnt = len(matched_series)
-log.info('Found %d DICOM Series in %d Studies', matched_series_cnt, len(scu_studies))
+log.warning('Found %d DICOM Series in %d Studies', matched_series_cnt, len(scu_studies))
 for study in sorted(scu_studies, key=lambda study: study.StudyDate + study.StudyTime):
-    log.info('  %s %s %s', study.StudyDate, study.StudyTime, study.StudyInstanceUID)
-    for series_uid in matched_series:
-        log.info('    %s', series_uid)
+    log.info('  %s %s: %s', study.StudyDate, study.StudyTime, study.StudyInstanceUID)
+    for series_uid, series in matched_series.iteritems():
+        log.info('    %s, %d images', series_uid, series['image_cnt'])
 
 if not args.yes:
     try:
@@ -82,13 +85,11 @@ if not args.yes:
     else:
         print
 
-_, upload_function = reaper.upload.upload_function(args.uri, ('sniper', args.aec, args.secret), insecure=args.insecure, upload_route='/api/upload/uid')
-
 for series_uid, series_info in matched_series.iteritems():
     with tempfile.TemporaryDirectory() as tempdir:
         reapdir = os.path.join(tempdir, 'reap')
         os.mkdir(reapdir)
-        log.info('Fetching     %s, %d images', series_uid, series_info['image_cnt'])
+        log.warning('Fetching     %s, %d images', series_uid, series_info['image_cnt'])
         start = datetime.datetime.utcnow()
         series_info['success'], _ = scu_.move(reaper.scu.SeriesQuery(SeriesInstanceUID=series_uid), reapdir)
         duration = (datetime.datetime.utcnow() - start).total_seconds()
@@ -98,6 +99,7 @@ for series_uid, series_info in matched_series.iteritems():
         else:
             log.error('Failure      %s', series_uid)
             continue
+        log.warning('Processing   %s', series_uid)
         metadata_map = reaper.dcm.pkg_series(series_uid, reapdir, args.map_key, None, args.anonymize, args.timezone)
         for filepath, metadata in metadata_map.iteritems():
             success = reaper.upload.metadata_upload(filepath, metadata, upload_function)

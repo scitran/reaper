@@ -120,34 +120,34 @@ class Reaper(object):
         query_start = datetime.datetime.utcnow()
         state = self.instrument_query()
         if state is None:
-            log.warning('unable to retrieve instrument state')
+            log.warning('Unable to retrieve instrument state')
         else:
-            log.info('query time   %.1fs', (datetime.datetime.utcnow() - query_start).total_seconds())
+            log.info('Query time   %.1fs', (datetime.datetime.utcnow() - query_start).total_seconds())
         return state
 
     def __set_initial_state(self):
         # pylint: disable=missing-docstring
-        log.info('initializing ' + self.__class__.__name__ + '...')
+        log.warning('Initializing ' + self.__class__.__name__ + '...')
         self.state = self.persistent_state
         if not self.state:
             self.state = self.__get_instrument_state()
             if self.state is None:
-                log.critical('cannot continue without instrument state')
+                log.critical('Cannot continue without instrument state')
                 sys.exit(1)
             else:
                 self.persistent_state = self.state
                 if self.ignore_existing:
-                    log.info('ignoring     %d items currently on instrument', len(self.state))
+                    log.warning('Ignoring     %d items currently on instrument', len(self.state))
                     for item in self.state.itervalues():
                         item['reaped'] = True
                 else:
-                    log.info('discovered   %d items on instrument', len(self.state))
-            log.info('sleeping     %.1fs', self.sleeptime)
+                    log.warning('Discovered   %d items on instrument', len(self.state))
+            log.info('Sleeping     %.1fs', self.sleeptime)
             time.sleep(self.sleeptime)
         else:
             unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
-            log.info('loaded %d items from persistence file, %d not reaped', len(self.state), unreaped_cnt)
-            log.info('*** delete persistence file to reset ***')
+            log.warning('Loaded %d items from persistence file, %d not reaped', len(self.state), unreaped_cnt)
+            log.warning('*** Delete persistence file to reset ***')
 
     def __build_reap_queue(self, new_state):
         reap_queue = []
@@ -160,24 +160,24 @@ class Reaper(object):
                     reap_queue.append((_id, new_item))  # TODO avoid weird tuples, maybe include id in item
                 elif new_item['state'] != item['state']:
                     new_item['reaped'] = False
-                    log.info('monitoring   ' + self.state_str(_id, new_item['state']))
+                    log.info('Monitoring   ' + self.state_str(_id, new_item['state']))
             else:
-                log.info('discovered   ' + self.state_str(_id, new_item['state']))
+                log.info('Discovered   ' + self.state_str(_id, new_item['state']))
         return reap_queue
 
     def __prune_stale_state(self, reap_start):
         for _id in [_id for _id, item in self.state.iteritems() if item['lastseen'] + self.graceperiod < reap_start]:
-            log.info('purging      %s', _id)
+            log.info('Purging      %s', _id)
             self.state.pop(_id)
 
     def __process_reap_queue(self, reap_queue):
         reap_queue_len = len(reap_queue)
         for i, _id_item in enumerate(reap_queue):
             if not self.in_working_hours:
-                log.info('aborting     reap-run (off-duty)')
+                log.warning('Aborting     reap-run (off-duty)')
                 break
             _id, item = _id_item
-            log.info('reap queue   item %d of %d', i + 1, reap_queue_len)
+            log.warning('Reap queue   item %d of %d', i + 1, reap_queue_len)
             with tempfile.TemporaryDirectory(dir=self.tempdir) as tempdir:
                 self.before_reap(_id)
                 item['reaped'], metadata_map = self.reap(_id, item, tempdir)  # returns True, False, None
@@ -188,11 +188,11 @@ class Reaper(object):
                     item['reaped'] = True
                 else:
                     item['failures'] += 1
-                    log.warning('failure      %s (%d failures)', _id, item['failures'])
+                    log.error('Failure      %s (%d failures)', _id, item['failures'])
                     if item['failures'] > 9:
                         item['reaped'] = True
                         item['abandoned'] = True
-                        log.warning('abandoning   ' + self.state_str(_id, item['state']))
+                        log.error('Abandoning   ' + self.state_str(_id, item['state']))
                 if item['reaped']:
                     self.after_reap_success(_id)
                 self.after_reap(_id)
@@ -204,7 +204,7 @@ class Reaper(object):
         self.__set_initial_state()
         while self.alive:
             if not self.in_working_hours:
-                log.info('sleeping     %.0fs (off-duty)', OFFDUTY_SLEEPTIME)
+                log.info('Sleeping     %.0fs (off-duty)', OFFDUTY_SLEEPTIME)
                 time.sleep(OFFDUTY_SLEEPTIME)
                 continue
             new_state = self.__get_instrument_state()
@@ -216,12 +216,12 @@ class Reaper(object):
                 self.persistent_state = self.state
                 self.__process_reap_queue(reap_queue)
                 self.unreaped_cnt = len([v for v in self.state.itervalues() if not v['reaped']])
-                log.info('monitoring   %d items, %d not reaped', len(self.state), self.unreaped_cnt)
+                log.warning('Monitoring   %d items, %d not reaped', len(self.state), self.unreaped_cnt)
             if self.oneshot:
                 break
             sleeptime = self.sleeptime - (datetime.datetime.utcnow() - reap_start).total_seconds()
             if sleeptime > 0:
-                log.info('sleeping     %.1fs', sleeptime)
+                log.info('Sleeping     %.1fs', sleeptime)
                 time.sleep(sleeptime)
 
     def is_desired_item(self, opt):
@@ -254,7 +254,7 @@ class Reaper(object):
     @persistent_state.setter
     def persistent_state(self, state):
         # pylint: disable=missing-docstring
-        log.debug('persisting   instrument state')
+        log.debug('Persisting   instrument state')
         util.write_state_file(self.persistence_file, state)
 
 
@@ -267,12 +267,12 @@ def main(cls, arg_parser_update=None):
     arg_parser.add_argument('-t', '--tempdir', help='directory to use for temporary files')
     arg_parser.add_argument('-z', '--timezone', help='instrument timezone [system timezone]')
     arg_parser.add_argument('-x', '--ignore_existing', action='store_true', help='ignore existing data')
-    arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
+    arg_parser.add_argument('-l', '--loglevel', default='warning', help='log level [WARNING]')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-k', '--workinghours', nargs=2, type=int, help='working hours in 24hr time [0 24]')
     arg_parser.add_argument('-o', '--oneshot', action='store_true', help='break out of runloop after one iteration (for testing)')
 
-    auth_group = arg_parser.add_mutually_exclusive_group(required=True)
+    auth_group = arg_parser.add_mutually_exclusive_group()
     auth_group.add_argument('--secret', help='shared API secret')
     auth_group.add_argument('--key', help='user API key')
 
@@ -298,7 +298,7 @@ def main(cls, arg_parser_update=None):
 
     args.timezone = util.validate_timezone(args.timezone)
     if args.timezone is None:
-        log.error('invalid timezone')
+        log.error('Invalid timezone')
         sys.exit(1)
 
     log.debug(args)
@@ -311,10 +311,10 @@ def main(cls, arg_parser_update=None):
     def term_handler(signum, stack):
         # pylint: disable=missing-docstring,unused-argument
         reaper.halt()
-        log.warning('received SIGTERM - shutting down...')
+        log.warning('Received SIGTERM - shutting down...')
     signal.signal(signal.SIGTERM, term_handler)
 
     reaper.run()
 
     sys.exit(reaper.unreaped_cnt > 0)
-    log.warning('process halted')
+    log.warning('Process halted')

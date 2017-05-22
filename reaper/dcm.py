@@ -20,7 +20,6 @@ GEMS_TYPE_VXTL = ['DERIVED', 'SECONDARY', 'VXTL STATE']
 def pkg_series(_id, path, map_key, opt_key=None, de_identify=False, timezone=None):
     # pylint: disable=missing-docstring
     dcm_dict = {}
-    log.debug('Inspecting   %s', _id)
     start = datetime.datetime.utcnow()
     filepaths = [os.path.join(path, filename) for filename in os.listdir(path)]
     file_cnt = len(filepaths)
@@ -29,7 +28,6 @@ def pkg_series(_id, path, map_key, opt_key=None, de_identify=False, timezone=Non
         dcm_dict.setdefault(dcm.acq_no, []).append(filepath)
     duration = (datetime.datetime.utcnow() - start).total_seconds()
     log.info('Inspected    %s, %d images in %.1fs [%.0f/s]', _id, file_cnt, duration, file_cnt / duration)
-    log.debug('Compressing  %s%s', _id, ' (and anonymizing)' if de_identify else '')
     metadata_map = {}
     start = datetime.datetime.utcnow()
     for acq_no, acq_paths in dcm_dict.iteritems():
@@ -52,7 +50,7 @@ def pkg_series(_id, path, map_key, opt_key=None, de_identify=False, timezone=Non
         metadata_map[arc_path] = metadata
     duration = (datetime.datetime.utcnow() - start).total_seconds()
     log.info('Compressed   %s%s, %d images in %.1fs [%.0f/s]',
-             _id, ' (and anonymized)' if de_identify else '', file_cnt, duration, file_cnt / duration)
+             _id, ', de-id\'ed' if de_identify else '', file_cnt, duration, file_cnt / duration)
     return metadata_map
 
 

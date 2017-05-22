@@ -105,10 +105,10 @@ def read_state_file(path):
             state = json.load(fd, object_hook=datetime_decoder)
         # TODO add some consistency checks here and possibly drop state if corrupt
     except IOError:
-        log.warning('state file not found')
+        log.warning('State file not found')
         state = {}
     except ValueError:
-        log.warning('state file corrupt')
+        log.warning('State file corrupt')
         state = {}
     return state
 
