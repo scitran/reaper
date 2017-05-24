@@ -54,10 +54,10 @@ function main() {
             --name $REAPER_CONTAINER \
             --volume $( pwd ):/src/reaper/reaper \
             --env DCMTK_VERSION=dcmtk-3.6.1_20150924 \
-            --env DCMTK_DB_DIR=test/data/dcmtk_dicom_db \
-            --env DOWNLOAD_DIR=test/deps \
-            --env INSTALL_DIR=test/deps \
-            --env TESTDATA_DIR=test/data/testdata \
+            --env DCMTK_DB_DIR=/src/reaper/reaper/test/data/dcmtk_dicom_db \
+            --env DOWNLOAD_DIR=/src/reaper/reaper/test/deps \
+            --env INSTALL_DIR=/src/reaper/reaper/test/deps \
+            --env TESTDATA_DIR=/src/reaper/reaper/test/data/testdata \
             --env ORTHANC_VERSION=Orthanc-1.1.0 \
             --workdir /src/reaper/reaper \
             --entrypoint bash \

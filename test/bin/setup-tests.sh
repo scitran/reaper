@@ -12,6 +12,8 @@ function main() {
     unset CDPATH
     cd "$( dirname "${BASH_SOURCE[0]}" )/../.."
 
+    mkdir -p $DOWNLOAD_DIR
+
     # DCMTK
     (
         cd $DOWNLOAD_DIR
