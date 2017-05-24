@@ -1,4 +1,7 @@
+.coverage*
 .DS_Store
 .*sw[op]
 *.py[co]
 *.egg-info
+test/data
+test/deps

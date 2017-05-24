@@ -1,7 +1,10 @@
 FROM buildpack-deps:xenial
 
 RUN apt-get update && apt-get install -y \
+    cmake \
     python-pip \
+    uuid-dev \
+    zip \
  && rm -rf /var/lib/apt/lists/* \
  && pip install --upgrade pip setuptools wheel
 

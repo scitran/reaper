@@ -1,3 +1,6 @@
+mock
 pep8
 pylint
+pytest
+pytest_cov
 uwsgi
