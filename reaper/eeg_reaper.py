@@ -43,7 +43,8 @@ class EEGReaper(reaper.Reaper):
         for fp in filepaths:
             try:
                 eeg = EEGFile(fp, self.path)
-            except (IOError, EEGFileError) as ex:
+            except (IOError, EEGFileError):
+                # TBD should this be logged (repeatedly) here?
                 continue
             i_state[eeg.acquisition_uid] = reaper.ReaperItem(eeg.reap_state, path=fp)
         return i_state
@@ -51,7 +52,7 @@ class EEGReaper(reaper.Reaper):
     def reap(self, _id, item, tempdir):
         try:
             eeg = EEGFile(item['path'], self.path)
-        except (IOError, EEGFileError) as ex:
+        except (IOError, EEGFileError):
             log.warning('skipping     %s (disappeared or unparsable)', _id)
             return None, {}
 
@@ -82,6 +83,7 @@ class EEGReaper(reaper.Reaper):
 
 
 class EEGFileError(Exception):
+    # pylint: disable=missing-docstring
     pass
 
 
@@ -92,10 +94,13 @@ class EEGFile(object):
     # pylint: disable=too-few-public-methods
 
     def __init__(self, filepath, reaperpath):
-        with open(filepath):
+        with open(filepath, 'rb'):
             self.filepath = filepath
 
-        creation_time = os.stat(filepath).st_ctime
+        # the .eeg file's ctime changes when appended, using header's ctime instead
+        header = os.path.splitext(filepath)[0] + '.vhdr'
+        creation_time = os.stat(header).st_ctime
+
         relpath = os.path.relpath(filepath, reaperpath)
         dirpath, filename = os.path.split(relpath)
         hierarchy_info = dirpath.split('/') if dirpath else []
@@ -104,13 +109,12 @@ class EEGFile(object):
 
         # not enough data to infer all sorting levels
         if len(sort_info) < 4:
-            # TBD should reaper support setting group[project] at startup?
+            # TBD should reaper support setting group[project] at startup to ease this?
             # TBD these won't even be discovered making it hard to trace why it wasn't UL'd
             raise EEGFileError('cannot infer sorting info from ' + relpath)
 
-        # autogenerate last level (acquisition_uid) if needed
+        # autogenerate last level (acquisition_uid) if not provided
         if len(sort_info) < 5:
-            # TBD format, timezone?
             dt = datetime.datetime.utcfromtimestamp(creation_time)
             sort_info.append(dt.strftime('%Y%m%d_%H%M%S'))
 
@@ -120,9 +124,11 @@ class EEGFile(object):
             # scenarios: hierarchy deep, too many _'s in filename or both
             sort_info = sort_info[-5:]
 
-        sort_keys = ('group__id', 'project_label', 'subject_code', 'session_uid', 'acquisition_uid')
-        for i, sort_key in enumerate(sort_keys):
-            setattr(self, sort_key, sort_info[i])
+        self.group__id = sort_info[0]
+        self.project_label = sort_info[1]
+        self.subject_code = sort_info[2]
+        self.session_uid = sort_info[3]
+        self.acquisition_uid = sort_info[4]
 
         self.acquisition_timestamp = datetime.datetime.utcfromtimestamp(creation_time)
         self.file_type = FILETYPE
