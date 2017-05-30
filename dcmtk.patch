@@ -1,18 +1,7 @@
-diff -Naur dcmtk-3.6.1_20150924/config/configure dcmtk-3.6.1_20150924.patch/config/configure
---- dcmtk-3.6.1_20150924/config/configure	2015-09-24 07:27:10.000000000 -0500
-+++ dcmtk-3.6.1_20150924.patch/config/configure	2017-04-27 17:26:22.000000000 -0500
-@@ -8551,7 +8551,6 @@
-   ac_fn_cxx_check_header_mongrel "$LINENO" "fenv.h" "ac_cv_header_fenv_h" "$ac_includes_default"
- if test "x$ac_cv_header_fenv_h" = xyes; then :
-   cat >>confdefs.h <<_ACEOF
--#define HAVE_FENV_H 1
- _ACEOF
- 
- fi
-diff -Naur dcmtk-3.6.1_20150924/dcmnet/apps/movescu.cc dcmtk-3.6.1_20150924.patch/dcmnet/apps/movescu.cc
---- dcmtk-3.6.1_20150924/dcmnet/apps/movescu.cc	2015-09-24 07:27:10.000000000 -0500
-+++ dcmtk-3.6.1_20150924.patch/dcmnet/apps/movescu.cc	2017-04-27 17:51:26.000000000 -0500
-@@ -53,6 +53,12 @@
+diff -Naur dcmtk/dcmnet/apps/movescu.cc dcmtk.patched/dcmnet/apps/movescu.cc
+--- dcmtk/dcmnet/apps/movescu.cc	2017-05-30 14:10:19.000000000 -0700
++++ dcmtk.patched/dcmnet/apps/movescu.cc	2017-05-30 14:09:29.000000000 -0700
+@@ -48,6 +48,12 @@
  
  #define OFFIS_CONSOLE_APPLICATION "movescu"
  
@@ -25,9 +14,9 @@ diff -Naur dcmtk-3.6.1_20150924/dcmnet/apps/movescu.cc dcmtk-3.6.1_20150924.patc
  static OFLogger movescuLogger = OFLog::getLogger("dcmtk.apps." OFFIS_CONSOLE_APPLICATION);
  
  static char rcsid[] = "$dcmtk: " OFFIS_CONSOLE_APPLICATION " v"
-@@ -1170,6 +1176,9 @@
+@@ -1248,6 +1254,9 @@
                  (*assoc)->params,
-                 dcmAllStorageSOPClassUIDs, numberOfAllDcmStorageSOPClassUIDs,
+                 dcmAllStorageSOPClassUIDs, numberOfDcmAllStorageSOPClassUIDs,
                  transferSyntaxes, numTransferSyntaxes);
 +            /* accept everything not known not to be a storage SOP class */
 +            cond = acceptUnknownContextsWithPreferredTransferSyntaxes(
@@ -35,7 +24,7 @@ diff -Naur dcmtk-3.6.1_20150924/dcmnet/apps/movescu.cc dcmtk-3.6.1_20150924.patc
          }
      }
      if (cond.good())
-@@ -1189,6 +1198,141 @@
+@@ -1267,6 +1276,141 @@
      return cond;
  }
  

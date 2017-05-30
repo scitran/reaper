@@ -1,9 +1,10 @@
 FROM alpine as build
 
-RUN apk add --no-cache build-base curl
+RUN apk add --no-cache build-base git
 
+RUN git clone git://git.dcmtk.org/dcmtk.git
 WORKDIR dcmtk
-RUN curl http://support.dcmtk.org/redmine/attachments/download/87/dcmtk-3.6.1_20150924.tar.gz | tar xz --strip-components 1
+RUN git checkout -qf 6c5329a82728bee2c7b6c7a05dbff192a2418d87
 
 COPY dcmtk.patch .
 RUN patch -p1 <dcmtk.patch
