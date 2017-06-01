@@ -164,9 +164,9 @@ def main():
     auth_group.add_argument('--key', help='user API key')
     arg_parser.add_argument('--root', action='store_true', help='send API requests as site admin')
 
-    arg_parser.add_argument('--group-related-series', action='store_true', help='group derived Series into the same Acquisition')
-    arg_parser.add_argument('--de-identify', action='store_true', help='de-identify data before upload')
-    arg_parser.add_argument('--tag-override', nargs=2, action='append', default=[], help='DICOM tag override')
+    arg_parser.add_argument('--group_related_series', action='store_true', help='group derived Series into the same Acquisition')
+    arg_parser.add_argument('--de_identify', action='store_true', help='de-identify data before upload')
+    arg_parser.add_argument('--tag_override', nargs=2, action='append', default=[], help='DICOM tag override')
 
     args = arg_parser.parse_args(sys.argv[1:] or ['--help'])
 
