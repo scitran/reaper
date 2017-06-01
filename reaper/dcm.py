@@ -104,9 +104,9 @@ class DicomFile(object):
                 if dob and study_datetime:
                     months = 12 * (study_datetime.year - dob.year) + (study_datetime.month - dob.month) - (study_datetime.day < dob.day)
                     dcm.PatientAge = '%03dM' % months if months < 960 else '%03dY' % (months / 12)
-            dcm.pop('PatientBirthDate', None)
-            dcm.pop('PatientName', None)
-            dcm.pop('PatientID', None)
+            dcm.PatientBirthDate = ''
+            dcm.PatientName = ''
+            dcm.PatientID = ''
             dcm.save_as(filepath)
 
     def get_tag(self, tag_name, default=None):
