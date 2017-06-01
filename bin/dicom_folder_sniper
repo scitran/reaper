@@ -25,10 +25,11 @@ DEFAULT_FIELD_NAMES = {
     'session_label':        'StudyDescription',
     'acquisition_label':    'SeriesDescription',
     'dataset_label_prefix': 'SeriesNumber',
+    'exam_number':          'StudyID',
 }
 
 
-def scandir(path, group_related_series=False, symlinks=False, **kwargs):
+def scandir(path, group_related_series=False, symlinks=False, de_identify=False, **kwargs):
     field_names = DEFAULT_FIELD_NAMES
     field_names.update(kwargs)
 
@@ -56,8 +57,10 @@ def scandir(path, group_related_series=False, symlinks=False, **kwargs):
                 continue
 
             acq_uid = primary_series_uid if primary_series_uid and group_related_series else series_uid
-
-            subj_code = dcm.get_tag(field_names['subject_code'], 'Unknown')
+            if not de_identify:
+                subj_code = dcm.get_tag(field_names['subject_code'], 'Unknown')
+            else:
+                subj_code = 'ex' + dcm.get_tag(field_names['exam_number'], 'Unknown')
             sess_label = dcm.get_tag(field_names['session_label'], 'Untitled')
             acq_label = dcm.get_tag(field_names['acquisition_label'], 'Untitled')
             ds_label = dcm.get_tag(field_names['dataset_label_prefix'], 'Unknown') + ' - ' +  acq_label
@@ -185,7 +188,7 @@ def main():
 
     tag_override = {k: v if v.lower() != 'null' else None for k, v in args.tag_override}
 
-    sessions = scandir(args.path, args.group_related_series, args.symlinks, **tag_override)
+    sessions = scandir(args.path, args.group_related_series, args.symlinks, args.de_identify, **tag_override)
     emit_summary(sessions, args.group, args.project)
     if not args.yes:
         try:
