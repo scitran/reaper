@@ -98,10 +98,8 @@ def emit_summary(sessions, project, group, de_identify=False):
                 file_cnt += len(ds['images'])
                 ds_cnt += 1
     log.warning('Found %d Acquisition(s) in %d Session(s)', acq_cnt, sess_cnt)
-    if de_identify:
-        log.warning('Will De-Identify and upload %d DICOM files as %d datasets', file_cnt, ds_cnt)
-    else:
-        log.warning('Will upload %d DICOM files as %d datasets', file_cnt, ds_cnt)
+    action = 'de-identify and upload' if de_identify else 'upload'
+    log.warning('Will %s %d DICOM files as %d datasets', action, file_cnt, ds_cnt)
 
     if log.isEnabledFor(logging.INFO):
         log.info('\nDerived hierarchy')
