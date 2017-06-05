@@ -3,12 +3,12 @@ import os
 from setuptools import setup, find_packages
 
 install_requires = [
-    'pydicom',
-    'python-dateutil',
-    'pytz',
-    'requests',
-    'requests_toolbelt',
-    'tzlocal',
+    'pydicom==0.9.9',
+    'python-dateutil==2.6.0',
+    'pytz==2017.2',
+    'requests==2.17.3',
+    'requests_toolbelt==0.8.0',
+    'tzlocal==1.4',
 ]
 
 setup(
