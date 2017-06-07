@@ -44,6 +44,7 @@ auth_group.add_argument('--key', help='user API key')
 args = arg_parser.parse_args(sys.argv[1:] or ['--help'])
 args.query = dict(args.query)
 
+
 args.timezone = reaper.util.validate_timezone(args.timezone)
 if args.timezone is None:
     log.error('invalid timezone')
@@ -60,9 +61,12 @@ matched_series = {}
 for study in scu_studies:
     scu_series = scu_.find(reaper.scu.SeriesQuery(**reaper.scu.SCUQuery(StudyInstanceUID=study.StudyInstanceUID)))
     for series in scu_series:
-        if series.NumberOfSeriesRelatedInstances is None:
+        if not series.NumberOfSeriesRelatedInstances:
             scu_images = scu_.find(reaper.scu.ImageQuery(**reaper.scu.SCUQuery(SeriesInstanceUID=series.SeriesInstanceUID)))
             series.NumberOfSeriesRelatedInstances = len(scu_images)
+            log.error(len(scu_images))
+            log.error(series.NumberOfSeriesRelatedInstances)
+        log.error(series.NumberOfSeriesRelatedInstances)
         matched_series[series.SeriesInstanceUID] = {
             'study_uid': study.StudyInstanceUID,
             'image_cnt': int(series.NumberOfSeriesRelatedInstances),
