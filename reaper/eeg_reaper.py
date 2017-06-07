@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """ SciTran EEG Reaper """
 
 import os
@@ -5,6 +8,7 @@ import sys
 import glob
 import shutil
 import logging
+import argparse
 import datetime
 
 from . import util
@@ -13,6 +17,26 @@ from . import reaper
 log = logging.getLogger('reaper.eeg')
 
 FILETYPE = 'eeg'
+
+DESCRIPTION = u"""
+This reaper will monitor a given directory for EEG files created with
+BrainVision Recorder and upload them together with their header (.vhdr)
+and marker (.vmrk) files to a scitran/core-compatible API, including
+creation of the appropriate project/session/acquisition hierarchy.
+
+The hierarchy is inferred from the EEG filename segments separated by
+underscores and/or the directory structure. The acquisition uid may
+be omitted in which case the creation timestamp will be used instead.
+
+Raw Files
+├── group-id_project-label_subject-code_session-uid_acquisition-uid.eeg
+└── group-id
+    └── project-label
+        ├── subject-code_session-uid_acquisition-uid.eeg
+        └── subject-code
+            └── session-uid
+                └── acquisition-uid.eeg
+"""
 
 
 class EEGReaper(reaper.Reaper):
@@ -146,6 +170,8 @@ class EEGFile(object):
 def update_arg_parser(ap):
     # pylint: disable=missing-docstring
     ap.add_argument('path', help='path to "Raw Files"')
+    ap.description = DESCRIPTION
+    ap.formatter_class=argparse.RawDescriptionHelpFormatter
 
     return ap
 
