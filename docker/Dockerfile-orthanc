@@ -1,0 +1,20 @@
+#
+# Image used for hosting .
+#
+# Example usage is in README.md
+#
+
+FROM ubuntu:16.04
+
+
+# Install pre-requisites
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends \
+		ca-certificates curl \
+		dcmtk \
+		orthanc \
+	&& rm -rf /var/lib/apt/lists/*
+
+COPY orthanc-config.json /etc/orthanc/orthanc-reaper-config.json
+
+ENTRYPOINT ["Orthanc", "/etc/orthanc/orthanc-reaper-config.json"]

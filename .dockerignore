@@ -1,4 +1,8 @@
+.git
+
+# --- Below Should mirror .gitignore, without leading '/' --- #
 .DS_Store
 .*sw[op]
 *.py[co]
 *.egg-info
+testdata
