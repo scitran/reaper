@@ -129,7 +129,7 @@ class EEGFile(object):
         dirpath, filename = os.path.split(relpath)
         hierarchy_info = dirpath.split('/') if dirpath else []
         filename_info = os.path.splitext(filename)[0].split('_')
-        sort_info = hierarchy_info + filename_info
+        sort_info = hierarchy_info + list(filter(None, filename_info))
 
         # not enough data to infer all sorting levels
         if len(sort_info) < 4:
