@@ -6,7 +6,7 @@ install_requires = [
     'pydicom',
     'python-dateutil',
     'pytz',
-    'requests',
+    'requests<2.16',
     'requests_toolbelt',
     'tzlocal',
 ]
