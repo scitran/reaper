@@ -15,11 +15,7 @@ cache:
         - $DOCKER_DIR
 
 
-
-before_install:
-    - ln -s bin $VIRTUAL_ENV/sbin
-
-install: tr
+install: true
 
 script:
     - test -f "$DOCKER_DIR/image.tar" && sudo docker load -i "$DOCKER_DIR/image.tar" || true
