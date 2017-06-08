@@ -5,7 +5,7 @@ import tempfile
 
 import pytest
 
-from reaper.eeg_reaper import EEGReaper, EEGFile, EEGFileError
+from reaper.eeg_reaper import EEGReaper, EEGFile
 
 
 @pytest.yield_fixture(scope='module')
@@ -16,17 +16,17 @@ def reaper():
 
 
 @pytest.fixture(scope='function', params=[
-    # filepath,                      sort info
-    ('not_enough.eeg',               EEGFileError('cannot infer sorting info')),
-    ('g_p_sub_sess.eeg',             ('g', 'p', 'sub', 'sess')),
-    ('g_p_sub_sess_acq.eeg',         ('g', 'p', 'sub', 'sess', 'acq')),
-    ('g/p_sub_sess_acq.eeg',         ('g', 'p', 'sub', 'sess', 'acq')),
-    ('g/p/sub_sess_acq.eeg',         ('g', 'p', 'sub', 'sess', 'acq')),
-    ('g/p/sub/sess_acq.eeg',         ('g', 'p', 'sub', 'sess', 'acq')),
-    ('g/p/sub/sess/acq.eeg',         ('g', 'p', 'sub', 'sess', 'acq')),
-    ('g_under/p/sub/sess/acq.eeg',   ('g_under', 'p', 'sub', 'sess', 'acq')),
-    ('ignored_g_p_sub_sess_acq.eeg', ('g', 'p', 'sub', 'sess', 'acq')),
-    ('ignored/g/p/sub/sess/acq.eeg', ('g', 'p', 'sub', 'sess', 'acq')),
+    # filepath                     sort info
+    ('not_enough.eeg',             ('', 'not_enough', '', '')),
+    ('g_p_sub_sess.eeg',           ('g', 'p', 'sub', 'sess')),
+    ('g_p_sub_sess_acq.eeg',       ('g', 'p', 'sub', 'sess', 'acq')),
+    ('g/p_sub_sess_acq.eeg',       ('g', 'p', 'sub', 'sess', 'acq')),
+    ('g/p/sub_sess_acq.eeg',       ('g', 'p', 'sub', 'sess', 'acq')),
+    ('g/p/sub/sess_acq.eeg',       ('g', 'p', 'sub', 'sess', 'acq')),
+    ('g/p/sub/sess/acq.eeg',       ('g', 'p', 'sub', 'sess', 'acq')),
+    ('g_under/p/sub/sess/acq.eeg', ('g_under', 'p', 'sub', 'sess', 'acq')),
+    ('g_p_sub_sess_acq_extra.eeg', ('g', 'p', 'sub', 'sess', 'acq_extra')),
+    ('g/p/sub/sess/acq/extra.eeg', ('g', 'p', 'sub', 'sess', 'acq_extra')),
 ])
 def testdata(reaper, request):
     filepath, expected_sort_info = request.param
@@ -56,11 +56,9 @@ def test_eeg_reaper(reaper, testdata, tmpdir):
         assert eeg.session_uid     == expected_sort_info[3]
         assert eeg.acquisition_uid == expected_sort_info[4]
 
-        _id = eeg.acquisition_uid
-
         query = reaper.instrument_query()
-        assert _id in query
-        item = query[_id]
+        assert eeg.reap_id in query
+        item = query[eeg.reap_id]
 
-        reaped, metadata_map = reaper.reap(_id, item, tmpdir.strpath)
+        reaped, metadata_map = reaper.reap(eeg.reap_id, item, tmpdir.strpath)
         assert reaped

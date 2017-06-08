@@ -47,7 +47,6 @@ class Reaper(object):
     has_mapkey_arg = True
     has_opt_arg = True
 
-
     def __init__(self, id_, options):
         self.id_ = id_
         self.state = {}

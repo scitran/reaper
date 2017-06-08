@@ -74,23 +74,22 @@ class EEGReaper(reaper.Reaper):
         for fp in filepaths:
             try:
                 eeg = EEGFile(fp, self.path)
-            except (IOError, EEGFileError):
-                # TBD should this be logged (repeatedly) here?
+            except IOError:
                 continue
-            i_state[eeg.acquisition_uid] = reaper.ReaperItem(eeg.reap_state, path=fp)
+            i_state[eeg.reap_id] = reaper.ReaperItem(eeg.reap_state, path=fp)
         return i_state
 
     def reap(self, _id, item, tempdir):
         try:
             eeg = EEGFile(item['path'], self.path)
-        except (IOError, EEGFileError):
-            log.warning('skipping     %s (disappeared or unparsable)', _id)
+        except IOError:
+            log.warning('skipping     %s (disappeared or unreadable)', _id)
             return None, {}
 
         filepaths = sorted(glob.glob(os.path.splitext(item['path'])[0] + '.*'))
         filenames = [(fp, os.path.basename(fp)) for fp in filepaths]
         log.debug('staging      %s%s', _id, ', ' + ', '.join([fn[1] for fn in filenames]))
-        reap_path = os.path.join(tempdir, _id)
+        reap_path = os.path.join(tempdir, os.path.basename(item['path']))
         os.mkdir(reap_path)
         for fp, fn in filenames:
             os.symlink(fp, os.path.join(reap_path, fn))
@@ -99,7 +98,7 @@ class EEGReaper(reaper.Reaper):
         reap_start = datetime.datetime.utcnow()
         log.info('reaping.zip  %s [%s]', _id, eeg_size)
         try:
-            filepath = util.create_archive(reap_path, os.path.basename(reap_path) + '.eeg', rootdir=False)
+            filepath = util.create_archive(reap_path, os.path.basename(reap_path), rootdir=False)
             shutil.rmtree(reap_path)
         # pylint: disable=broad-except
         except Exception:
@@ -113,11 +112,6 @@ class EEGReaper(reaper.Reaper):
         return True, {filepath: metadata}
 
 
-class EEGFileError(Exception):
-    # pylint: disable=missing-docstring
-    pass
-
-
 class EEGFile(object):
 
     """EEGFile class"""
@@ -125,6 +119,7 @@ class EEGFile(object):
     # pylint: disable=too-few-public-methods
 
     def __init__(self, filepath, reaperpath):
+        # check that file exists and is readable
         with open(filepath, 'rb'):
             self.filepath = filepath
 
@@ -138,22 +133,21 @@ class EEGFile(object):
         filename_info = os.path.splitext(filename)[0].split('_')
         sort_info = hierarchy_info + list(filter(None, filename_info))
 
-        # not enough data to infer all sorting levels
+        # not enough sort info parts to infer hierarchy
+        # concatenate everything available into project_label
         if len(sort_info) < 4:
-            # TBD should reaper support setting group[project] at startup to ease this?
-            # TBD these won't even be discovered making it hard to trace why it wasn't UL'd
-            raise EEGFileError('cannot infer sorting info from ' + relpath)
+            sort_info = ['', '_'.join(sort_info), '', '']
 
-        # autogenerate last level (acquisition_uid) if not provided
+        # autogenerate acquisition_uid from ctime if not provided
         if len(sort_info) < 5:
             dt = datetime.datetime.utcfromtimestamp(creation_time)
             sort_info.append(dt.strftime('%Y%m%d_%H%M%S'))
 
-        # discard all but the last 5 sort info parts
+        # concatenate surplus sort info parts into acquisition_uid
         if len(sort_info) > 5:
-            # TBD should this be handled differently?
-            # scenarios: hierarchy deep, too many _'s in filename or both
-            sort_info = sort_info[-5:]
+            sort_info = sort_info[:4] + ['_'.join(sort_info[4:])]
+
+        self.reap_id = os.path.splitext(relpath)[0]
 
         self.group__id = sort_info[0]
         self.project_label = sort_info[1]
@@ -183,7 +177,7 @@ def update_arg_parser(ap):
     # pylint: disable=missing-docstring
     ap.add_argument('path', help='path to "Raw Files"')
     ap.description = DESCRIPTION
-    ap.formatter_class=argparse.RawDescriptionHelpFormatter
+    ap.formatter_class = argparse.RawDescriptionHelpFormatter
 
     return ap
 
