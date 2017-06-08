@@ -10,14 +10,21 @@ cat >&2 <<EOF
 Run scitran-reaper tests
 
 Usage:
-    $0 [OPTION...] [-- PYTEST_ARGS...]
-
-PYTEST_ARGS:        Arguments passed to py.test
+    $0 [OPTION...]
 
 Options:
-    -L, --no-lint       Skip linting
-    -U, --no-unit       Skip unit tests
-    -h, --help          Print this help and exit
+    -L, --no-lint           Skip linting
+    -U, --no-unit           Skip unit tests
+    -h, --help              Print this help and exit
+    --core-url value        URL for Scitran REST API
+    --core-secret value     Auth secret for Scitran REST API
+    --dicom-scp-host value  hostname/ip for DICOM server
+    --dicom-scp-port value  Listening Port for DICOM server
+    --dicom-scp-aet value   AE Title for DICOM server
+    --orthanc value         URL to Orthanc REST API
+    --testdata value        Path to testdata
+    -- PYTEST_ARGS          Arguments passed to py.test
+
 
 EOF
 }

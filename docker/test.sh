@@ -12,12 +12,11 @@ Run scitran-reaper tests
 Usage:
     $0 [OPTION...] [-- TEST_ARGS...]
 
-TEST_ARGS:        Arguments passed to test/bin/test.sh
-
 Options:
     -B, --no-build      Skip Docker Builds
     -h, --help          Print this help and exit
-    --testdata <path>   Path to testdata.
+    --testdata path     Path to testdata.
+    -- TEST_ARGS        Arguments passed to test/bin/test.sh
 
 EOF
 }
@@ -120,7 +119,6 @@ function main() {
 
 clean_up () {(
   set +e
-
   # Spin down dependencies
   docker rm -f -v scitran-core-mongo
   docker rm -f -v scitran-core
