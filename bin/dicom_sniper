@@ -64,9 +64,6 @@ for study in scu_studies:
         if not series.NumberOfSeriesRelatedInstances:
             scu_images = scu_.find(reaper.scu.ImageQuery(**reaper.scu.SCUQuery(SeriesInstanceUID=series.SeriesInstanceUID)))
             series.NumberOfSeriesRelatedInstances = len(scu_images)
-            log.error(len(scu_images))
-            log.error(series.NumberOfSeriesRelatedInstances)
-        log.error(series.NumberOfSeriesRelatedInstances)
         matched_series[series.SeriesInstanceUID] = {
             'study_uid': study.StudyInstanceUID,
             'image_cnt': int(series.NumberOfSeriesRelatedInstances),
