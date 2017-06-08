@@ -60,12 +60,12 @@ function main() {
   # Orthanc
   #   calledAE = ORTHANC 4242
   #   REST port = 8042
-  docker run -d --rm --name orthanc-test --network reaper-test orthanc-test
+  docker run -d --name orthanc-test --network reaper-test orthanc-test
 
 
   # scitran-core
-  docker run -d --rm --name scitran-core-mongo --network reaper-test mongo
-  docker run -d --rm --name scitran-core \
+  docker run -d --name scitran-core-mongo --network reaper-test mongo
+  docker run -d --name scitran-core \
     --network reaper-test \
     -e "SCITRAN_PERSISTENT_DB_URI=mongodb://scitran-core-mongo:27017/scitran" \
     -e "SCITRAN_PERSISTENT_DB_LOG_URI=mongodb://scitran-core-mongo:27017/logs" \
@@ -122,9 +122,9 @@ clean_up () {(
   set +e
 
   # Spin down dependencies
-  docker stop scitran-core-mongo
-  docker stop scitran-core
-  docker stop orthanc-test
+  docker rm -f -v scitran-core-mongo
+  docker rm -f -v scitran-core
+  docker rm -f -v orthanc-test
   docker network rm reaper-test
 )}
 trap clean_up EXIT
