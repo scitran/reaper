@@ -55,7 +55,11 @@ class EEGReaper(reaper.Reaper):
         self.path = path
 
     def state_str(self, _id, state):
-        return '%s, [%s, %s]' % (_id, state['mod_time'].strftime(reaper.DATE_FORMAT), util.hrsize(state['size']))
+        return '{}, [{}, {}]'.format(
+            _id,
+            state['eeg']['mod_time'].strftime(reaper.DATE_FORMAT),
+            util.hrsize(state['eeg']['size'])
+        )
 
     def instrument_query(self):
         i_state = {}
@@ -91,7 +95,7 @@ class EEGReaper(reaper.Reaper):
         for fp, fn in filenames:
             os.symlink(fp, os.path.join(reap_path, fn))
 
-        eeg_size = util.hrsize(item['state']['size'])
+        eeg_size = util.hrsize(item['state']['eeg']['size'])
         reap_start = datetime.datetime.utcnow()
         log.info('reaping.zip  %s [%s]', _id, eeg_size)
         try:
@@ -163,11 +167,16 @@ class EEGFile(object):
     @property
     def reap_state(self):
         """Return ReaperItem compatible state"""
-        stats = os.stat(self.filepath)
-        return {
-            'mod_time': datetime.datetime.utcfromtimestamp(stats.st_mtime),
-            'size': stats.st_size,
-        }
+        state = {}
+        filepaths = glob.glob(os.path.splitext(self.filepath)[0] + '.*')
+        for fp in filepaths:
+            extension = os.path.splitext(fp)[1].replace('.', '')
+            stats = os.stat(fp)
+            state[extension] = {
+                'mod_time': datetime.datetime.utcfromtimestamp(stats.st_mtime),
+                'size': stats.st_size,
+            }
+        return state
 
 
 def update_arg_parser(ap):
