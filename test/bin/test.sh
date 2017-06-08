@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
 set -e
+unset CDPATH
+cd "$( dirname "${BASH_SOURCE[0]}" )/../.."
+
 
 function usage() {
 cat >&2 <<EOF
@@ -20,8 +23,7 @@ EOF
 }
 
 function main() {
-    unset CDPATH
-    cd "$( dirname "${BASH_SOURCE[0]}" )/../.."
+
 
     local RUN_LINT=true
     local RUN_UNIT=true
@@ -33,10 +35,12 @@ function main() {
         case "$1" in
             -L|--no-lint)     RUN_LINT=false;           ;;
             -U|--no-unit)     RUN_UNIT=false;           ;;
-            --core)
+            --core-url)
               CORE_URL="$2"
-              CORE_SECRET="$3"
-              shift 2;;
+              shift;;
+            --core-secret)
+              CORE_SECRET="$2"
+              shift;;
             --dicom-scp-host)
               DICOM_SCP_HOST="$2"
               shift;;
@@ -52,48 +56,67 @@ function main() {
             --testdata)
               TESTDATA_DIR="$2"
               shift;;
-            --)               PYTEST_ARGS="${@:2}";     break;;
+            --)               PYTEST_ARGS="${@:2}"; echo "$PYTEST_ARGS";     break;;
             -h|--help)        usage;                    exit 0;;
-            *) echo "Invalid argument: $1" >&2; usage;  exit 1;;
+            *) >&2 echo "Invalid argument: $1"; usage;  exit 1;;
         esac
         shift
     done
 
-  if ${RUN_LINT} ; then
-    echo
-    echo "Running pylint ..."
-    pylint --jobs=2 --reports=no --disable=R1705 reaper
+  # install dependencies
+  pip install -r test/requirements.txt
+  pip freeze
 
-    echo
-    echo "Running pep8 ..."
-    pep8 --max-line-length=150 --ignore=E402 reaper
+  if ${RUN_LINT} ; then
+    ./test/bin/lint.sh
   fi
 
   if ${RUN_UNIT} ; then
-    echo
-    echo "Running unit tests ..."
+    >&2 echo
+    >&2 echo "Running unit tests ..."
     #TODO: add unit tests
   fi
 
-    # TODO: Make this conditional for tests that require it.
+  # Validate input dependencies
+
+  # Dicom_SCP required TESTDATA_DIR
+
+
+  # Orthanc requires DICOM_SCP
+  if [ ${ORTHANC_REST_URL} ] ; then
+    if [ -z ${DICOM_SCP_HOST} ] || [ -z ${DICOM_SCP_PORT} ] || [ -z ${DICOM_SCP_AET} ] || [ -z ${CORE_URL} ] || [ -z ${CORE_SECRET} ] ; then
+      >&2 echo "ERROR: orthanc testing requires ..."
+    fi
+  fi
+
+  # TODO: check testdata provided if DICOM stuff provided
+
+  if [ ${DICOM_SCP_HOST} ] && [ ${DICOM_SCP_PORT} ] && [ ${DICOM_SCP_AET} ] && [ ${TESTDATA_DIR} ] ; then
+    >&2 echo
+    >&2 echo "INFO: Loading test data into DICOM SCP"
     storescu -v --scan-directories -aec "${DICOM_SCP_AET}" "${DICOM_SCP_HOST}" "${DICOM_SCP_PORT}"  $(find $TESTDATA_DIR -type d -name dicom | tail -n 1)
 
-    # Test DICOM Sniper
+    >&2 echo
+    >&2 echo "INFO: Test DICOM Sniper"
     dicom_sniper -y --secret "${CORE_SECRET}" -k StudyID "" "${DICOM_SCP_HOST}" "${DICOM_SCP_PORT}" 5104 REAPER "${DICOM_SCP_AET}" "${CORE_URL}"
 
-
-    # Test DICOM Reaper
+    >&2 echo
+    >&2 echo "INFO: Test DICOM Reaper"
     dicom_reaper -o -s 1 --secret "${CORE_SECRET}" $(mktemp) "${DICOM_SCP_HOST}" "${DICOM_SCP_PORT}" 5104 REAPER "${DICOM_SCP_AET}" "${CORE_URL}"
 
+    if [ ${ORTHANC_REST_URL} ] ; then
+      >&2 echo
+      >&2 echo "INFO: Test Orthanc DICOM Reaper"
+      orthanc_reaper -o -s 1 --secret "${CORE_SECRET}" $(mktemp) "${DICOM_SCP_HOST}" "${DICOM_SCP_PORT}" 5104 REAPER "${DICOM_SCP_AET}" "${ORTHANC_REST_URL}" "${CORE_URL}"
+    fi
+  fi
 
+  if [ ${TESTDATA_DIR} ] && [ ${CORE_URL} ] && [ ${CORE_SECRET} ] ; then
     # Test Folder Sniper
     folder_sniper -y --secret "${CORE_SECRET}" "${TESTDATA_DIR}" "${CORE_URL}"
+  fi
 
 
-    orthanc_reaper -o -s 1 --secret "${CORE_SECRET}" $(mktemp) "${DICOM_SCP_HOST}" "${DICOM_SCP_PORT}" 5104 REAPER "${DICOM_SCP_AET}" "${ORTHANC_REST_URL}" "${CORE_URL}"
-
-
-  sleep 10000
 }
 
 

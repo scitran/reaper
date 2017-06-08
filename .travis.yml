@@ -1,39 +1,33 @@
 sudo: false
-language: python
-python:
-    - "2.7"
+dist: trusty
+services:
+    - docker
 
 env:
     global:
-        - DCMTK_VERSION="dcmtk-3.6.1_20150924"
-        - DCMTK_DB_DIR="dcmtk_dicom_db"
-        - TESTDATA_DIR="testdata"
-        - ORTHANC_VERSION="Orthanc-1.1.0"
+        - TESTDATA_DIR="$HOME/.cache/testdata"
+        - DOCKER_DIR="$HOME/.cache/docker"
         - secure: tLyIDfETpHCDRyEqF2ROM8ue+D+fl/IeOdFBY/Mov7zhAHpgBdQQJi+HQ1/RK+G7DDsnM/FIjvCcf4etphmBHK3xs8vDM1oPntYs+3iE2AbTcVGglHYoX1++H76xPt3eXyf1S0frgVg6qYCNmuP0chhDUkYXPydcKvq1ANjfTQU= # BUILD_TRIGGER_URL
 
 cache:
-    pip: true
     directories:
-        - $DCMTK_VERSION
-        - $DCMTK_DB_DIR
         - $TESTDATA_DIR
-        - $ORTHANC_VERSION
+        - $DOCKER_DIR
 
-addons:
-    apt:
-        packages:
-            - uuid-dev
+
 
 before_install:
     - ln -s bin $VIRTUAL_ENV/sbin
 
-install:
-    - pip install .
-    - pip install -r test/requirements.txt
-    - ./test/install_deps.sh
+install: tr
 
 script:
-    - ./test/lint.sh && ./test/test.sh
+    - test -f "$DOCKER_DIR/image.tar" && sudo docker load -i "$DOCKER_DIR/image.tar" || true
+    - docker build -t my_image .
+    - docker save -o "$DOCKER_DIR/image.tar" $(docker history -q my_image | grep -v '<missing>')
+    - mkdir -p "$TESTDATA_DIR"
+    - curl -L https://github.com/scitran/testdata/archive/master.tar.gz | tar xz -C "$TESTDATA_DIR" --strip-components 1
+    - ./docker/test.sh --testdata "$TESTDATA_DIR"
 
 after_success:
     - if [ "$TRAVIS_TAG" ]; then
