@@ -118,7 +118,7 @@ def __http_upload(url, secret_info, key, root, insecure, upload_route):
 def __request_session(secret_info, key, root, insecure):
     # pylint: disable=missing-docstring
     if insecure:
-        requests.urllib3.disable_warnings()
+        requests.packages.urllib3.disable_warnings()
     rs = requests.Session()
     if secret_info:
         rs.headers['X-SciTran-Method'] = secret_info[0]

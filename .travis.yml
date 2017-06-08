@@ -28,8 +28,8 @@ before_install:
     - ln -s bin $VIRTUAL_ENV/sbin
 
 install:
-    - pip install .
     - pip install -r test/requirements.txt
+    - pip install .
     - ./test/install_deps.sh
 
 script:
