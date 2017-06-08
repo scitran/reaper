@@ -44,6 +44,10 @@ class Reaper(object):
 
     """Reaper class"""
 
+    has_mapkey_arg = True
+    has_opt_arg = True
+
+
     def __init__(self, id_, options):
         self.id_ = id_
         self.state = {}
@@ -62,9 +66,9 @@ class Reaper(object):
         self.working_hours = options.get('workinghours')
         self.oneshot = options.get('oneshot')
 
-        if options['opt_in']:
+        if options.get('opt_in'):
             self.opt = 'in'
-        elif options['opt_out']:
+        elif options.get('opt_out'):
             self.opt = 'out'
         else:
             self.opt = None
@@ -72,7 +76,7 @@ class Reaper(object):
         if self.opt is not None:
             self.opt_key = options['opt_' + self.opt][0]
             self.opt_value = options['opt_' + self.opt][1].lower()
-        self.map_key = options['map_key']
+        self.map_key = options.get('map_key')
 
     def halt(self):
         # pylint: disable=missing-docstring
@@ -276,10 +280,12 @@ def main(cls, arg_parser_update=None):
     auth_group.add_argument('--secret', help='shared API secret')
     auth_group.add_argument('--key', help='user API key')
 
-    arg_parser.add_argument('--map-key', default='PatientID', help='key for mapping info [PatientID], patterned as subject@group/project')
-    opt_group = arg_parser.add_mutually_exclusive_group()
-    opt_group.add_argument('--opt-in', nargs=2, help='opt-in key and value (case-insensitive regular expression matching)')
-    opt_group.add_argument('--opt-out', nargs=2, help='opt-out key and value (case-insensitive regular expression matching)')
+    if cls.has_mapkey_arg:
+        arg_parser.add_argument('--map-key', default='PatientID', help='key for mapping info [PatientID], patterned as subject@group/project')
+    if cls.has_opt_arg:
+        opt_group = arg_parser.add_mutually_exclusive_group()
+        opt_group.add_argument('--opt-in', nargs=2, help='opt-in key and value (case-insensitive regular expression matching)')
+        opt_group.add_argument('--opt-out', nargs=2, help='opt-out key and value (case-insensitive regular expression matching)')
 
     if arg_parser_update is not None:
         arg_parser = arg_parser_update(arg_parser)

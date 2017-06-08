@@ -43,6 +43,9 @@ class EEGReaper(reaper.Reaper):
 
     """EEGReaper class"""
 
+    has_mapkey_arg = False
+    has_opt_arg = False
+
     def __init__(self, options):
         path = options.get('path')
         if not os.path.isdir(path):

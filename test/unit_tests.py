@@ -11,8 +11,7 @@ from reaper.eeg_reaper import EEGReaper, EEGFile, EEGFileError
 @pytest.yield_fixture(scope='module')
 def reaper():
     tmp = tempfile.mkdtemp()
-    reaper = EEGReaper({'path': tmp, 'opt_in': None, 'opt_out': None, 'map_key': None})
-    yield reaper
+    yield EEGReaper({'path': tmp})
     shutil.rmtree(tmp)
 
 
