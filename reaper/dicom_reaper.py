@@ -18,7 +18,7 @@ class DicomReaper(reaper.Reaper):
     def __init__(self, options):
         self.scu = scu.SCU(options.get('host'), options.get('port'), options.get('return_port'), options.get('aet'), options.get('aec'))
         super(DicomReaper, self).__init__(self.scu.aec, options)
-        self.anonymize = options.get('anonymize')
+        self.de_identify = options.get('de_identify')
 
         self.query_tags = {self.map_key: ''}
         if self.opt_key is not None:
@@ -78,7 +78,7 @@ class DicomReaper(reaper.Reaper):
                 return None, {}
         if success and reap_cnt == item['state']['images']:
             log.warning('Processing   %s', self.state_str(_id))
-            metadata_map = dcm.pkg_series(_id, reapdir, self.map_key, self.opt_key, self.anonymize, self.timezone)
+            metadata_map = dcm.pkg_series(_id, reapdir, self.map_key, self.opt_key, self.de_identify, self.timezone)
             return True, metadata_map
         else:
             return False, {}
@@ -92,7 +92,7 @@ def update_arg_parser(ap):
     ap.add_argument('aet', help='local AE title')
     ap.add_argument('aec', help='remote AE title')
 
-    ap.add_argument('-A', '--no-anonymize', dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')
+    ap.add_argument('--de-identify', action='store_true', help='de-identify data before upload')
 
     return ap
 

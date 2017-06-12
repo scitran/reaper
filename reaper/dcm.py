@@ -49,8 +49,9 @@ def pkg_series(_id, path, map_key, opt_key=None, de_identify=False, timezone=Non
         shutil.rmtree(arcdir_path)
         metadata_map[arc_path] = metadata
     duration = (datetime.datetime.utcnow() - start).total_seconds()
-    log.info('Compressed   %s%s, %d images in %.1fs [%.0f/s]',
-             _id, ', de-id\'ed' if de_identify else '', file_cnt, duration, file_cnt / duration)
+    if de_identify:
+        log.info('De-id\'ed     %s, %d images', _id, file_cnt)
+    log.info('Compressed   %s, %d images in %.1fs [%.0f/s]', _id, file_cnt, duration, file_cnt / duration)
     return metadata_map
 
 
