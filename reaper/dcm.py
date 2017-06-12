@@ -2,7 +2,6 @@
 
 import os
 import shutil
-import hashlib
 import logging
 import datetime
 
@@ -90,8 +89,6 @@ class DicomFile(object):
             self.session_uid = dcm.get('StudyInstanceUID')
             self.session_timestamp = study_datetime
             self.subject_firstname, self.subject_lastname = self.__parse_patient_name(dcm.get('PatientName', ''))
-            self.subject_firstname_hash = hashlib.sha256(self.subject_firstname).hexdigest() if self.subject_firstname else None
-            self.subject_lastname_hash = hashlib.sha256(self.subject_lastname).hexdigest() if self.subject_lastname else None
             self.subject_code, self.group__id, self.project_label = util.parse_sorting_info(self._id, 'ex' + dcm.get('StudyID', ''))
             self.acquisition_uid = series_uid + ('_' + str(self.acq_no) if self.acq_no is not None else '')
             self.acquisition_timestamp = acq_datetime or study_datetime

@@ -30,8 +30,6 @@ METADATA = [
     ('session', 'operator'),
     ('subject', 'firstname'),
     ('subject', 'lastname'),
-    ('subject', 'firstname_hash'),  # unrecoverable, if anonymizing
-    ('subject', 'lastname_hash'),   # unrecoverable, if anonymizing
     ('subject', 'sex'),
     ('subject', 'age'),
     ('acquisition', 'instrument'),
