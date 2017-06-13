@@ -13,14 +13,14 @@ import reaper.upload
 import reaper.tempdir as tempfile
 
 logging.basicConfig(
-    format='%(asctime)s %(levelname)8.8s %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
+    format='%(message)s',
 )
 log = logging.getLogger()
 
 
 def scan_folder(path, symlinks=False):
     projects = []
+    log.warning('Inspecting %s', path)
     for dirpath, dirnames, filenames in os.walk(path, followlinks=symlinks):
         filenames = [fn for fn in filenames if not fn.startswith('.')]      # ignore dotfiles
         dirnames[:] = [dn for dn in dirnames if not dn.startswith('.')]     # use slice assignment to influence walk
@@ -71,8 +71,8 @@ def print_upload_summary(projects):
             for acq in sess['acquisitions']:
                 file_cnt += len(acq['files'])
                 packfile_cnt += len(acq['packfiles'])
-    log.info('Found %d Session(s) in %d Project(s) in %d Group(s)', session_cnt, len(projects), group_cnt)
-    log.info('Will upload %d regular file(s) and %d pack file(s)', file_cnt, packfile_cnt)
+    log.warning('Found %d Session(s) in %d Project(s) in %d Group(s)', session_cnt, len(projects), group_cnt)
+    log.warning('Will upload %d regular file(s) and %d pack file(s)', file_cnt, packfile_cnt)
 
 
 def file_metadata(f, **kwargs):
@@ -87,7 +87,7 @@ def upsert_groups(groups, api_request):
     for group in groups:
         success = api_request('post', '/groups', json={'_id': group.lower()})
         if success:
-            log.info('Upserted group ' + group)
+            log.warning('Upserted group ' + group)
         else:
             log.error('Failed to upsert group ' + group + '. Trying to proceed anyway.')
 
@@ -100,44 +100,44 @@ def process(projects, upload_func):
         group = project['group']
         p_label = group + ' > ' + project['label']
         metadata = {'group': {'_id': group}, 'project': {'label': project['label']}}
-        log.info(action_str, '', p_label)
+        log.warning(action_str, '', p_label)
         for f in project['files']:
-            log.info(file_str, 'Uploading', f['path'])
+            log.warning(file_str, 'Uploading', f['path'])
             metadata['project']['files'] = [file_metadata(f)]
             upload_func(f['path'], metadata)
         metadata['project'].pop('files', [])
         for session in project['sessions']:
             s_label = p_label + ' > ' + session['label']
-            log.info(action_str, '', s_label)
+            log.warning(action_str, '', s_label)
             subj_files = session['subject'].pop('files', [])
             metadata.update({'session': {'label': session['label'], 'subject': session['subject']}})
             for f in session['files']:
-                log.info(file_str, 'Uploading', f['path'])
+                log.warning(file_str, 'Uploading', f['path'])
                 metadata['session']['files'] = [file_metadata(f)]
                 upload_func(f['path'], metadata)
             for f in subj_files:
-                log.info(file_str, 'Uploading', f['path'])
+                log.warning(file_str, 'Uploading', f['path'])
                 metadata['session']['subject']['files'] = [file_metadata(f)]
                 upload_func(f['path'], metadata)
             metadata['session'].pop('files', [])
             metadata['session']['subject'].pop('files', [])
             for acquisition in session['acquisitions']:
                 a_label = s_label + ' > ' + acquisition['label']
-                log.info(action_str, '', a_label)
+                log.warning(action_str, '', a_label)
                 metadata.update({'acquisition': {'label': acquisition['label']}})
                 for f in acquisition['files']:
-                    log.info(file_str, 'Uploading', f['path'])
+                    log.warning(file_str, 'Uploading', f['path'])
                     metadata['acquisition']['files'] = [file_metadata(f)]
                     upload_func(f['path'], metadata)
                 metadata['acquisition'].pop('files', [])
-                log.info(action_str, 'pack-', a_label)
+                log.warning(action_str, 'pack-', a_label)
                 for f in acquisition['packfiles']:
                     with tempfile.TemporaryDirectory() as tempdir:
-                        log.info(file_str, 'Packing', f['path'])
+                        log.warning(file_str, 'Packing', f['path'])
                         arcname = acquisition['label'] + '.' + f['type']
                         fp = reaper.util.create_archive(f['path'], arcname, None, tempdir)
                         metadata['acquisition']['files'] = [file_metadata(f, name=os.path.basename(fp))]
-                        log.info(file_str, 'Uploading', f['path'])
+                        log.warning(file_str, 'Uploading', f['path'])
                         upload_func(fp, metadata)
                 metadata['acquisition'].pop('files', [])
 
@@ -172,7 +172,7 @@ def main():
     arg_parser.add_argument('uri', help='API URL')
     arg_parser.add_argument('-i', '--insecure', action='store_true', help='do not verify server SSL certificates')
     arg_parser.add_argument('-y', '--yes', action='store_true', help='do not prompt to continue')
-    arg_parser.add_argument('-l', '--loglevel', default='info', help='log level [INFO]')
+    arg_parser.add_argument('-l', '--loglevel', default='warning', help='log level [WARNING]')
     arg_parser.add_argument('-s', '--symlinks', action='store_true', help='follow symbolic links that resolve to directories')
     arg_parser.add_argument('--root', action='store_true', help='send API requests as site admin')
 
@@ -187,9 +187,12 @@ def main():
 
     args.path = os.path.expanduser(args.path)
     if not os.path.isdir(args.path):
-        log.error('Path        %s is not a directory or does not exist', args.path)
+        log.critical('Path        %s is not a directory or does not exist', args.path)
         sys.exit(1)
-    log.info('Inspecting  %s', args.path)
+
+    secret_info = ('Folder Sniper', 'System Import', args.secret) if args.secret else None
+    api_request, upload_function = reaper.upload.upload_function(args.uri, secret_info, args.key, args.root, args.insecure, '/api/upload/label')
+
     groups, projects = scan_folder(args.path, args.symlinks)
     if not args.yes:
         print_upload_summary(projects)
@@ -199,8 +202,6 @@ def main():
             print
             sys.exit(1)
 
-    secret_info = ('Folder Sniper', 'System Import', args.secret) if args.secret else None
-    api_request, upload_function = reaper.upload.upload_function(args.uri, secret_info, args.key, args.root, args.insecure, '/api/upload/label')
     try:
         upsert_groups(groups, api_request)
         process(projects, upload_function)

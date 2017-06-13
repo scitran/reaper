@@ -30,8 +30,6 @@ METADATA = [
     ('session', 'operator'),
     ('subject', 'firstname'),
     ('subject', 'lastname'),
-    ('subject', 'firstname_hash'),  # unrecoverable, if anonymizing
-    ('subject', 'lastname_hash'),   # unrecoverable, if anonymizing
     ('subject', 'sex'),
     ('subject', 'age'),
     ('acquisition', 'instrument'),
@@ -40,11 +38,6 @@ METADATA = [
     ('file', 'measurements'),
 ]
 
-logging.basicConfig(
-    format='%(asctime)s %(name)16.16s:%(levelname)4.4s %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    level=logging.INFO,
-)
 log = logging.getLogger(__name__)
 
 
@@ -110,10 +103,10 @@ def read_state_file(path):
             state = json.load(fd, object_hook=datetime_decoder)
         # TODO add some consistency checks here and possibly drop state if corrupt
     except IOError:
-        log.warning('state file not found')
+        log.warning('State file not found')
         state = {}
     except ValueError:
-        log.warning('state file corrupt')
+        log.warning('State file corrupt')
         state = {}
     return state
 
@@ -129,15 +122,20 @@ def write_state_file(path, state):
 
 def create_archive(content, arcname, metadata=None, outdir=None):
     # pylint: disable=missing-docstring
-    path = (os.path.join(outdir, arcname) if outdir else os.path.join(os.path.dirname(content), arcname)) + '.zip'
-    with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+    if hasattr(content, '__iter__'):
+        outdir = outdir or os.path.curdir
+        files = [(os.path.basename(fp), fp) for fp in content]
+    else:
+        outdir = outdir or os.path.dirname(content)
+        files = [(fn, os.path.join(content, fn)) for fn in os.listdir(content)]
+    outpath = os.path.join(outdir, arcname) + '.zip'
+    files.sort(key=lambda f: os.path.getsize(f[1]))
+    with zipfile.ZipFile(outpath, 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
         if metadata is not None:
             zf.comment = json.dumps(metadata, default=metadata_encoder)
-        files = [(fn, os.path.join(content, fn)) for fn in os.listdir(content)]
-        files.sort(key=lambda f: os.path.getsize(f[1]))
         for fn, fp in files:
             zf.write(fp, os.path.join(arcname, fn))
-    return path
+    return outpath
 
 
 def set_archive_metadata(path, metadata):

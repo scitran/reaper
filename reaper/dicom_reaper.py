@@ -18,14 +18,17 @@ class DicomReaper(reaper.Reaper):
     def __init__(self, options):
         self.scu = scu.SCU(options.get('host'), options.get('port'), options.get('return_port'), options.get('aet'), options.get('aec'))
         super(DicomReaper, self).__init__(self.scu.aec, options)
-        self.anonymize = options.get('anonymize')
+        self.de_identify = options.get('de_identify')
 
         self.query_tags = {self.map_key: ''}
         if self.opt_key is not None:
             self.query_tags[self.opt_key] = ''
 
-    def state_str(self, _id, state):
-        return '%s (%s)' % (_id, ', '.join(['%s %s' % (v, k or 'null') for k, v in state.iteritems()]))
+    def state_str(self, _id, state=None):
+        if state:
+            return _id + ', ' + ', '.join(['%s %s' % (v, k or 'null') for k, v in state.iteritems()])
+        else:
+            return _id
 
     def instrument_query(self):
         i_state = {}
@@ -56,14 +59,14 @@ class DicomReaper(reaper.Reaper):
 
     def reap(self, _id, item, tempdir):
         if item['state']['images'] == 0:
-            log.info('Ignoring     %s (zero images)', _id)
+            log.warning('Ignoring     %s (zero images)', _id)
             return None, {}
         if not self.is_desired_item(item['state']['opt']):
-            log.info('Ignoring     %s (non-matching opt-%s)', _id, self.opt)
+            log.warning('Ignoring     %s (non-matching opt-%s)', _id, self.opt)
             return None, {}
         reapdir = os.path.join(tempdir, 'raw_dicoms')
         os.mkdir(reapdir)
-        log.info('Reaping      %s', self.state_str(_id, item['state']))
+        log.warning('Reaping      %s', self.state_str(_id, item['state']))
         start = datetime.datetime.utcnow()
         success, reap_cnt = self.scu.move(scu.SeriesQuery(SeriesInstanceUID=_id), reapdir)
         duration = (datetime.datetime.utcnow() - start).total_seconds()
@@ -71,10 +74,11 @@ class DicomReaper(reaper.Reaper):
         if success and reap_cnt > 0:
             df = dcm.DicomFile(os.path.join(reapdir, os.listdir(reapdir)[0]), self.map_key, self.opt_key)
             if not self.is_desired_item(df.opt):
-                log.info('Ignoring     %s (non-matching opt-%s)', _id, self.opt)
+                log.warning('Ignoring     %s (non-matching opt-%s)', _id, self.opt)
                 return None, {}
         if success and reap_cnt == item['state']['images']:
-            metadata_map = dcm.pkg_series(_id, reapdir, self.map_key, self.opt_key, self.anonymize, self.timezone)
+            log.warning('Processing   %s', self.state_str(_id))
+            metadata_map = dcm.pkg_series(_id, reapdir, self.map_key, self.opt_key, self.de_identify, self.timezone)
             return True, metadata_map
         else:
             return False, {}
@@ -88,7 +92,7 @@ def update_arg_parser(ap):
     ap.add_argument('aet', help='local AE title')
     ap.add_argument('aec', help='remote AE title')
 
-    ap.add_argument('-A', '--no-anonymize', dest='anonymize', action='store_false', help='do not anonymize patient name and birthdate')
+    ap.add_argument('--de-identify', action='store_true', help='de-identify data before upload')
 
     return ap
 

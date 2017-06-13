@@ -4,9 +4,9 @@ import os
 import json
 import array
 import logging
-import httplib
 import datetime
 
+import httplib
 import requests
 import requests_toolbelt
 
@@ -54,14 +54,14 @@ def upload_many(metadata_map, upload_func):
 def metadata_upload(filepath, metadata, upload_func):
     # pylint: disable=missing-docstring
     filename = os.path.basename(filepath)
-    log.debug('Uploading    %s [%s]', filename, util.hrsize(os.path.getsize(filepath)))
+    log.warning('Uploading    %s [%s]', filename, util.hrsize(os.path.getsize(filepath)))
     start = datetime.datetime.utcnow()
     success = upload_func(filepath, metadata)
     duration = (datetime.datetime.utcnow() - start).total_seconds()
     if success:
         log.info('Uploaded     %s [%s/s]', filename, util.hrsize(os.path.getsize(filepath) / duration))
     else:
-        log.info('Failure      %s', filename)
+        log.error('Failure      %s', filename)
     return success
 
 
@@ -70,7 +70,7 @@ def upload_function(uri, secret_info=None, key=None, root=False, insecure=False,
     """Helper to get an appropriate upload function based on protocol"""
     if uri.startswith('http://') or uri.startswith('https://'):
         return __http_upload(uri.strip('/'), secret_info, key, root, insecure, upload_route)
-    elif uri.startswith('testing://'):
+    elif uri.startswith('dummy://'):
         return lambda method, route, **kwargs: True, lambda filepath, metadata: True
     elif uri.startswith('s3://'):
         return __s3_upload
@@ -88,12 +88,12 @@ def __http_upload(url, secret_info, key, root, insecure, upload_route):
         try:
             r = http_session.request(method, url + route, **kwargs)
         except requests.exceptions.ConnectionError as ex:
-            log.error('error        %s', ex)
+            log.error('Error        %s', ex)
             return False
         if r.ok:
             return True
         else:
-            log.warning('failure      %s %s', r.status_code, r.reason)
+            log.error('Failure      %s %s', r.status_code, r.reason)
             return False
 
     def upload(filepath, metadata):
@@ -104,12 +104,12 @@ def __http_upload(url, secret_info, key, root, insecure, upload_route):
             try:
                 r = http_session.post(url + upload_route, data=mpe, headers={'Content-Type': mpe.content_type})
             except requests.exceptions.ConnectionError as ex:
-                log.error('error        %s: %s', filename, ex)
+                log.error('Error        %s: %s', filename, ex)
                 return False
             if r.ok:
                 return True
             else:
-                log.warning('failure      %s: %s %s', filename, r.status_code, r.reason)
+                log.error('Failure      %s: %s %s', filename, r.status_code, r.reason)
                 return False
 
     return request, upload

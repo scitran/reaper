@@ -2,7 +2,6 @@
 
 import os
 import shutil
-import hashlib
 import logging
 import datetime
 
@@ -17,10 +16,9 @@ GEMS_TYPE_SCREENSHOT = ['DERIVED', 'SECONDARY', 'SCREEN SAVE']
 GEMS_TYPE_VXTL = ['DERIVED', 'SECONDARY', 'VXTL STATE']
 
 
-def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None):
+def pkg_series(_id, path, map_key, opt_key=None, de_identify=False, timezone=None):
     # pylint: disable=missing-docstring
     dcm_dict = {}
-    log.debug('Inspecting   %s', _id)
     start = datetime.datetime.utcnow()
     filepaths = [os.path.join(path, filename) for filename in os.listdir(path)]
     file_cnt = len(filepaths)
@@ -29,7 +27,6 @@ def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None)
         dcm_dict.setdefault(dcm.acq_no, []).append(filepath)
     duration = (datetime.datetime.utcnow() - start).total_seconds()
     log.info('Inspected    %s, %d images in %.1fs [%.0f/s]', _id, file_cnt, duration, file_cnt / duration)
-    log.debug('Compressing  %s%s', _id, ' (and anonymizing)' if anonymize else '')
     metadata_map = {}
     start = datetime.datetime.utcnow()
     for acq_no, acq_paths in dcm_dict.iteritems():
@@ -38,7 +35,7 @@ def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None)
         arcdir_path = os.path.join(path, '..', dir_name)
         os.mkdir(arcdir_path)
         for filepath in acq_paths:
-            dcm = DicomFile(filepath, map_key, opt_key, parse=True, anonymize=anonymize, timezone=timezone)
+            dcm = DicomFile(filepath, map_key, opt_key, parse=True, de_identify=de_identify, timezone=timezone)
             filename = os.path.basename(filepath)
             if filename.startswith('(none)'):
                 filename = filename.replace('(none)', 'NA')
@@ -51,9 +48,15 @@ def pkg_series(_id, path, map_key, opt_key=None, anonymize=False, timezone=None)
         shutil.rmtree(arcdir_path)
         metadata_map[arc_path] = metadata
     duration = (datetime.datetime.utcnow() - start).total_seconds()
-    log.info('Compressed   %s%s, %d images in %.1fs [%.0f/s]',
-             _id, ' (and anonymized)' if anonymize else '', file_cnt, duration, file_cnt / duration)
+    if de_identify:
+        log.info('De-id\'ed     %s, %d images', _id, file_cnt)
+    log.info('Compressed   %s, %d images in %.1fs [%.0f/s]', _id, file_cnt, duration, file_cnt / duration)
     return metadata_map
+
+
+class DicomFileError(dicom.errors.InvalidDicomError):
+    """DicomFileError class"""
+    pass
 
 
 class DicomFile(object):
@@ -64,15 +67,19 @@ class DicomFile(object):
 
     # pylint: disable=too-few-public-methods
 
-    def __init__(self, filepath, map_key, opt_key=None, parse=False, anonymize=False, timezone=None):
-        if not parse and anonymize:
-            raise Exception('Cannot anonymize DICOM file without parsing')
-        dcm = dicom.read_file(filepath, stop_before_pixels=(not anonymize))
-        self._id = dcm.get(map_key, '')
+    def __init__(self, filepath, map_key=None, opt_key=None, parse=False, de_identify=False, timezone=None):
+        try:
+            self.raw = dcm = dicom.read_file(filepath, stop_before_pixels=(not de_identify))
+        except dicom.errors.InvalidDicomError:
+            raise DicomFileError()
+
+        self._id = dcm.get(map_key, '') if opt_key else None
         self.opt = dcm.get(opt_key, '') if opt_key else None
         self.acq_no = str(dcm.get('AcquisitionNumber', '')) or None if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
 
-        if parse:
+        if parse or de_identify:
+            if not timezone:
+                timezone = util.validate_timezone(None)
             series_uid = dcm.get('SeriesInstanceUID')
             if self.__is_screenshot(dcm.get('ImageType')):
                 front, back = series_uid.rsplit('.', 1)
@@ -82,25 +89,29 @@ class DicomFile(object):
             self.session_uid = dcm.get('StudyInstanceUID')
             self.session_timestamp = study_datetime
             self.subject_firstname, self.subject_lastname = self.__parse_patient_name(dcm.get('PatientName', ''))
-            self.subject_firstname_hash = hashlib.sha256(self.subject_firstname).hexdigest() if self.subject_firstname else None
-            self.subject_lastname_hash = hashlib.sha256(self.subject_lastname).hexdigest() if self.subject_lastname else None
             self.subject_code, self.group__id, self.project_label = util.parse_sorting_info(self._id, 'ex' + dcm.get('StudyID', ''))
             self.acquisition_uid = series_uid + ('_' + str(self.acq_no) if self.acq_no is not None else '')
             self.acquisition_timestamp = acq_datetime or study_datetime
             self.acquisition_label = dcm.get('SeriesDescription')
             self.file_type = FILETYPE
 
-        if parse and anonymize:
+        if de_identify:
             self.subject_firstname = self.subject_lastname = None
             if dcm.get('PatientBirthDate'):
                 dob = self.__parse_patient_dob(dcm.PatientBirthDate)
-                if dob:
+                if dob and study_datetime:
                     months = 12 * (study_datetime.year - dob.year) + (study_datetime.month - dob.month) - (study_datetime.day < dob.day)
                     dcm.PatientAge = '%03dM' % months if months < 960 else '%03dY' % (months / 12)
-                del dcm.PatientBirthDate
-            if dcm.get('PatientName'):
-                del dcm.PatientName
+            del dcm.PatientBirthDate
+            del dcm.PatientName
+            del dcm.PatientID
             dcm.save_as(filepath)
+
+    def get_tag(self, tag_name, default=None):
+        # pylint: disable=missing-docstring
+        if tag_name:
+            return str(self.raw.get(tag_name)).strip('\x00') or default
+        return default
 
     @staticmethod
     def __is_screenshot(image_type):
@@ -112,7 +123,7 @@ class DicomFile(object):
     @staticmethod
     def __timestamp(date, time, timezone):
         # pylint: disable=missing-docstring
-        if date and time:
+        if date and time and timezone:
             return util.localize_timestamp(datetime.datetime.strptime(date + time[:6], '%Y%m%d%H%M%S'), timezone)
         return None
 
