@@ -73,7 +73,7 @@ class EEGReaper(reaper.Reaper):
             log.warning(ex)
         for fp in filepaths:
             try:
-                eeg = EEGFile(fp, self.path)
+                eeg = EEGFile(fp, self)
             except IOError:
                 continue
             i_state[eeg.reap_id] = reaper.ReaperItem(eeg.reap_state, path=fp)
@@ -81,7 +81,7 @@ class EEGReaper(reaper.Reaper):
 
     def reap(self, _id, item, tempdir):
         try:
-            eeg = EEGFile(item['path'], self.path)
+            eeg = EEGFile(item['path'], self)
         except IOError:
             log.warning('skipping     %s (disappeared or unreadable)', _id)
             return None, {}
@@ -118,7 +118,7 @@ class EEGFile(object):
 
     # pylint: disable=too-few-public-methods
 
-    def __init__(self, filepath, reaperpath):
+    def __init__(self, filepath, reaper_inst):
         # check that file exists and is readable
         with open(filepath, 'rb'):
             self.filepath = filepath
@@ -127,7 +127,7 @@ class EEGFile(object):
         header = os.path.splitext(filepath)[0] + '.vhdr'
         creation_time = os.stat(header).st_ctime
 
-        relpath = os.path.relpath(filepath, reaperpath)
+        relpath = os.path.relpath(filepath, reaper_inst.path)
         dirpath, filename = os.path.split(relpath)
         hierarchy_info = dirpath.split('/') if dirpath else []
         filename_info = os.path.splitext(filename)[0].split('_')
@@ -140,7 +140,7 @@ class EEGFile(object):
 
         # autogenerate acquisition_uid from ctime if not provided
         if len(sort_info) < 5:
-            dt = datetime.datetime.utcfromtimestamp(creation_time)
+            dt = datetime.datetime.fromtimestamp(creation_time, tz=reaper_inst.timezone)
             sort_info.append(dt.strftime('%Y%m%d_%H%M%S'))
 
         # concatenate surplus sort info parts into acquisition_uid

@@ -36,29 +36,23 @@ def testdata(reaper, request):
     open(filepath, 'w').close()
     open(filepath.replace('.eeg', '.vhdr'), 'w').close()
     if not isinstance(expected_sort_info, Exception) and len(expected_sort_info) < 5:
-        expected_sort_info += (datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S'),)
+        expected_sort_info += (datetime.datetime.now(tz=reaper.timezone).strftime('%Y%m%d_%H%M%S'),)
     return filepath, expected_sort_info
 
 
 def test_eeg_reaper(reaper, testdata, tmpdir):
     filepath, expected_sort_info = testdata
 
-    if isinstance(expected_sort_info, Exception):
-        with pytest.raises(type(expected_sort_info)) as exc_info:
-            eeg = EEGFile(filepath, reaper.path)
-        assert str(expected_sort_info) in str(exc_info.value)
+    eeg = EEGFile(filepath, reaper)
+    assert eeg.group__id       == expected_sort_info[0]
+    assert eeg.project_label   == expected_sort_info[1]
+    assert eeg.subject_code    == expected_sort_info[2]
+    assert eeg.session_uid     == expected_sort_info[3]
+    assert eeg.acquisition_uid == expected_sort_info[4]
 
-    else:
-        eeg = EEGFile(filepath, reaper.path)
-        assert eeg.group__id       == expected_sort_info[0]
-        assert eeg.project_label   == expected_sort_info[1]
-        assert eeg.subject_code    == expected_sort_info[2]
-        assert eeg.session_uid     == expected_sort_info[3]
-        assert eeg.acquisition_uid == expected_sort_info[4]
+    query = reaper.instrument_query()
+    assert eeg.reap_id in query
+    item = query[eeg.reap_id]
 
-        query = reaper.instrument_query()
-        assert eeg.reap_id in query
-        item = query[eeg.reap_id]
-
-        reaped, metadata_map = reaper.reap(eeg.reap_id, item, tmpdir.strpath)
-        assert reaped
+    reaped, metadata_map = reaper.reap(eeg.reap_id, item, tmpdir.strpath)
+    assert reaped
