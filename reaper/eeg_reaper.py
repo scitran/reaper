@@ -49,7 +49,7 @@ class EEGReaper(reaper.Reaper):
     def __init__(self, options):
         path = options.get('path')
         if not os.path.isdir(path):
-            log.error('path argument must be a directory')
+            log.error('Path argument must be a directory')
             sys.exit(1)
         super(EEGReaper, self).__init__(path.strip('/').replace('/', '_'), options)
         self.path = path
@@ -67,7 +67,7 @@ class EEGReaper(reaper.Reaper):
             # list every path/**/*.eeg file (using os.walk because python2 glob doesn't support **)
             filepaths = [fp for w in os.walk(self.path) for fp in glob.glob(os.path.join(w[0], '*.eeg'))]
             if not filepaths:
-                raise Warning('no matching files found (or error while checking for files)')
+                raise Warning('No matching files found (or error while checking for files)')
         except (OSError, Warning) as ex:
             filepaths = []
             log.warning(ex)
@@ -83,12 +83,12 @@ class EEGReaper(reaper.Reaper):
         try:
             eeg = EEGFile(item['path'], self)
         except IOError:
-            log.warning('skipping     %s (disappeared or unreadable)', _id)
+            log.warning('Skipping     %s (disappeared or unreadable)', _id)
             return None, {}
 
         filepaths = sorted(glob.glob(os.path.splitext(item['path'])[0] + '.*'))
         filenames = [(fp, os.path.basename(fp)) for fp in filepaths]
-        log.debug('staging      %s%s', _id, ', ' + ', '.join([fn[1] for fn in filenames]))
+        log.debug('Staging      %s%s', _id, ', ' + ', '.join([fn[1] for fn in filenames]))
         reap_path = os.path.join(tempdir, os.path.basename(item['path']))
         os.mkdir(reap_path)
         for fp, fn in filenames:
@@ -96,19 +96,19 @@ class EEGReaper(reaper.Reaper):
 
         eeg_size = util.hrsize(item['state']['eeg']['size'])
         reap_start = datetime.datetime.utcnow()
-        log.info('reaping.zip  %s [%s]', _id, eeg_size)
+        log.info('Reaping.zip  %s [%s]', _id, eeg_size)
         try:
             filepath = util.create_archive(reap_path, os.path.basename(reap_path), rootdir=False)
             shutil.rmtree(reap_path)
         # pylint: disable=broad-except
         except Exception:
-            log.warning('reap error   %s', _id)
+            log.warning('Reap error   %s', _id)
             return False, None
         metadata = util.object_metadata(eeg, self.timezone, os.path.basename(filepath))
         metadata['acquisition']['files'][0]['info'] = {'path': item['path']}
         util.set_archive_metadata(filepath, metadata)
         reap_time = (datetime.datetime.utcnow() - reap_start).total_seconds()
-        log.info('reaped.zip   %s [%s] in %.1fs', _id, eeg_size, reap_time)
+        log.info('Reaped.zip   %s [%s] in %.1fs', _id, eeg_size, reap_time)
         return True, {filepath: metadata}
 
 
@@ -131,7 +131,7 @@ class EEGFile(object):
         dirpath, filename = os.path.split(relpath)
         hierarchy_info = dirpath.split('/') if dirpath else []
         filename_info = os.path.splitext(filename)[0].split('_')
-        sort_info = hierarchy_info + list(filter(None, filename_info))
+        sort_info = hierarchy_info + [fni for fni in filename_info if fni]
 
         # not enough sort info parts to infer hierarchy
         # concatenate everything available into project_label
@@ -164,7 +164,7 @@ class EEGFile(object):
         state = {}
         filepaths = glob.glob(os.path.splitext(self.filepath)[0] + '.*')
         for fp in filepaths:
-            extension = os.path.splitext(fp)[1].replace('.', '')
+            extension = os.path.splitext(fp)[1].strip('.')
             stats = os.stat(fp)
             state[extension] = {
                 'mod_time': datetime.datetime.utcfromtimestamp(stats.st_mtime),

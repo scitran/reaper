@@ -120,7 +120,7 @@ def write_state_file(path, state):
     os.rename(temp_path, path)
 
 
-def create_archive(content, arcname, rootdir=True, metadata=None, outdir=None):
+def create_archive(content, arcname, metadata=None, outdir=None, rootdir=True):
     # pylint: disable=missing-docstring
     if hasattr(content, '__iter__'):
         outdir = outdir or os.path.curdir
