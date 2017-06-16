@@ -139,7 +139,7 @@ def upload(sessions, group, project, upload_function, de_identify=False, timezon
                     else:
                         paths = [path for path in ds['images'].itervalues()]
                     log.info('Packaging    %s', ds['label'])
-                    archive = reaper.util.create_archive(paths, ds['label'], outdir=tempdir)
+                    archive = reaper.util.create_archive(paths, ds['label'] + '.dicom', outdir=tempdir)
                     metadata['acquisition']['files'] = [{'type': 'dicom', 'name': os.path.basename(archive)}]
                     reaper.upload.metadata_upload(archive, metadata, upload_function)
 
