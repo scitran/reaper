@@ -71,11 +71,11 @@ function main() {
     done
 
   # install dependencies
-  pip install -r test/requirements.txt
+  pip install -r tests/requirements.txt
   pip freeze
 
   if ${RUN_LINT} ; then
-    ./test/bin/lint.sh
+    ./tests/bin/lint.sh
   fi
 
   if ${RUN_UNIT} ; then

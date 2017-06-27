@@ -92,9 +92,9 @@ function main() {
     -v "$TESTDATA_DIR:/testdata" \
     -v "$(pwd)/bin:/src/reaper/bin" \
     -v "$(pwd)/reaper:/src/reaper/reaper" \
-    -v "$(pwd)/test:/src/reaper/test" \
+    -v "$(pwd)/tests:/src/reaper/tests" \
     reaper-test \
-      /src/reaper/test/bin/test.sh \
+      /src/reaper/tests/bin/test.sh \
       --testdata /testdata \
       --core-url http://scitran-core:8080 \
       --core-secret secret \
