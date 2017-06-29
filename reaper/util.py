@@ -2,6 +2,7 @@
 
 import os
 import json
+import shutil
 import string
 import logging
 import zipfile
@@ -117,7 +118,7 @@ def write_state_file(path, state):
     with open(temp_path, 'w') as fd:
         json.dump(state, fd, indent=4, separators=(',', ': '), default=datetime_encoder)
         fd.write('\n')
-    os.rename(temp_path, path)
+    shutil.move(temp_path, path)
 
 
 def create_archive(content, arcname, metadata=None, outdir=None, rootdir=True):

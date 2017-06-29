@@ -51,8 +51,8 @@ class EEGReaper(reaper.Reaper):
         if not os.path.isdir(path):
             log.error('Path argument must be a directory')
             sys.exit(1)
-        super(EEGReaper, self).__init__(path.strip('/').replace('/', '_'), options)
-        self.path = path
+        self.path = os.path.normpath(os.path.normcase(os.path.abspath(path)))
+        super(EEGReaper, self).__init__(self.path.replace(os.sep, '_'), options)
 
     def state_str(self, _id, state):
         return '{}, [{}, {}]'.format(
@@ -92,7 +92,7 @@ class EEGReaper(reaper.Reaper):
         reap_path = os.path.join(tempdir, os.path.basename(item['path']))
         os.mkdir(reap_path)
         for fp, fn in filenames:
-            os.symlink(fp, os.path.join(reap_path, fn))
+            shutil.copy(fp, os.path.join(reap_path, fn))
 
         eeg_size = util.hrsize(item['state']['eeg']['size'])
         reap_start = datetime.datetime.utcnow()
@@ -129,7 +129,7 @@ class EEGFile(object):
 
         relpath = os.path.relpath(filepath, reaper_inst.path)
         dirpath, filename = os.path.split(relpath)
-        hierarchy_info = dirpath.split('/') if dirpath else []
+        hierarchy_info = dirpath.split(os.sep) if dirpath else []
         filename_info = os.path.splitext(filename)[0].split('_')
         sort_info = hierarchy_info + [fni for fni in filename_info if fni]
 
