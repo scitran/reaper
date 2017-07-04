@@ -27,3 +27,13 @@ example-tree
                     └── data-type
                         └── data-file
 ```
+
+### Windows eeg_reaper.exe creation
+1. Download and install [python](https://www.python.org/ftp/python/2.7.13/python-2.7.13.msi) (and [msvc](https://www.microsoft.com/en-us/download/details.aspx?id=44266))
+2. Download and unzip [scitran/reaper](https://github.com/scitran/reaper/archive/master.zip)
+3. `$ pip install pyinstaller --editable .` - in extracted reaper folder
+4. `$ pyinstaller --onefile bin/eeg_reaper` - creates executable in dist/
+
+Notes:
+* those unfamiliar with windows may find [cmder](https://github.com/cmderdev/cmder/releases/download/v1.3.2/cmder.zip) useful
+* system-wide `pip install` requires a shell started via right-click + 'Run as Administrator'
