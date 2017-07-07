@@ -98,7 +98,7 @@ class EEGReaper(reaper.Reaper):
         reap_start = datetime.datetime.utcnow()
         log.info('Reaping.zip  %s [%s]', _id, eeg_size)
         try:
-            filepath = util.create_archive(reap_path, os.path.basename(reap_path), rootdir=False)
+            filepath = util.create_archive(reap_path, os.path.basename(reap_path))
             shutil.rmtree(reap_path)
         # pylint: disable=broad-except
         except Exception:
