@@ -70,7 +70,7 @@ class DicomFile(object):
         dcm = dicom.read_file(filepath, stop_before_pixels=(not anonymize))
         self._id = dcm.get(map_key, '')
         self.opt = dcm.get(opt_key, '') if opt_key else None
-        self.acq_no = str(dcm.get('AcquisitionNumber', '')) or None if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
+        self.acq_no = (str(dcm.get('AcquisitionNumber', '')) or None) if dcm.get('Manufacturer', '').upper() != 'SIEMENS' else None
 
         if parse:
             series_uid = dcm.get('SeriesInstanceUID')
