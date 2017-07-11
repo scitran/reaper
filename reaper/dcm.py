@@ -75,7 +75,7 @@ class DicomFile(object):
 
         self._id = dcm.get(map_key, '') if map_key else None
         self.opt = dcm.get(opt_key, '') if opt_key else None
-        self.acq_no = str(dcm.get('AcquisitionNumber', '')) or None if dcm.get('Manufacturer').upper() != 'SIEMENS' else None
+        self.acq_no = (str(dcm.get('AcquisitionNumber', '')) or None) if dcm.get('Manufacturer', '').upper() != 'SIEMENS' else None
 
         if parse or de_identify:
             if not timezone:
