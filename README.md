@@ -4,7 +4,7 @@
 ```
 virtualenv --prompt "(reaper) " reaperenv
 source reaperenv/bin/activate
-pip install git+https://github.com/scitran/reaper.git
+pip install -e git+https://github.com/scitran/reaper.git#egg=reaper
 ```
 
 More detailed [installation instructions](https://github.com/scitran/reaper/blob/master/INSTALLATION.md) are also available.
