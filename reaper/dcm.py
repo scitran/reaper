@@ -94,7 +94,7 @@ class DicomFile(object):
             self.subject_firstname = self.subject_lastname = None
             if dcm.get('PatientBirthDate'):
                 dob = self.__parse_patient_dob(dcm.PatientBirthDate)
-                if dob:
+                if dob and study_datetime:
                     months = 12 * (study_datetime.year - dob.year) + (study_datetime.month - dob.month) - (study_datetime.day < dob.day)
                     dcm.PatientAge = '%03dM' % months if months < 960 else '%03dY' % (months / 12)
                 del dcm.PatientBirthDate
